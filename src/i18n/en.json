@@ -1,0 +1,81 @@
+{
+  "common": {
+    "appName": "SafeRoute Thailand",
+    "tagline": "AI-Powered Accident Risk Prediction",
+    "language": "Language",
+    "english": "English",
+    "thai": "Thai"
+  },
+  "nav": {
+    "home": "Home",
+    "map": "Risk Map",
+    "dashboard": "Dashboard",
+    "predict": "Predict",
+    "history": "History",
+    "reports": "Reports",
+    "settings": "Settings",
+    "about": "About"
+  },
+  "landing": {
+    "hero": {
+      "title": "Predict Road Accidents",
+      "titleHighlight": "Before They Happen",
+      "subtitle": "Advanced AI-powered system analyzing weather, traffic, and historical data to predict accident risk areas across Thailand",
+      "cta": "Explore Risk Map",
+      "ctaSecondary": "Make Prediction"
+    },
+    "stats": {
+      "predictions": "Predictions Made",
+      "accuracy": "Model Accuracy",
+      "areas": "Areas Monitored",
+      "updates": "Real-time Updates"
+    },
+    "features": {
+      "title": "Powerful Features",
+      "subtitle": "Everything you need to understand and predict road accident risks",
+      "realtime": {
+        "title": "Real-time Data",
+        "description": "Live weather and traffic data feeds for accurate predictions"
+      },
+      "ai": {
+        "title": "AI Predictions",
+        "description": "Machine learning models trained on historical accident data"
+      },
+      "visualization": {
+        "title": "Visual Analytics",
+        "description": "Interactive maps and charts for easy risk assessment"
+      },
+      "alerts": {
+        "title": "Risk Alerts",
+        "description": "Instant notifications for high-risk areas and conditions"
+      }
+    },
+    "severity": {
+      "title": "Risk Severity Levels",
+      "low": "Minor Injury",
+      "lowDesc": "Low risk - minor injuries possible",
+      "medium": "Serious Injury",
+      "mediumDesc": "Medium risk - serious injuries likely",
+      "high": "Fatal",
+      "highDesc": "High risk - fatal accidents possible"
+    },
+    "cta": {
+      "title": "Start Predicting Now",
+      "subtitle": "Get instant risk assessments for any location in Thailand",
+      "button": "Launch Prediction Tool"
+    }
+  },
+  "footer": {
+    "description": "AI-powered road safety prediction system for Thailand",
+    "links": "Quick Links",
+    "resources": "Resources",
+    "contact": "Contact",
+    "rights": "All rights reserved"
+  },
+  "risk": {
+    "low": "Minor Injury",
+    "medium": "Serious Injury",
+    "high": "Fatal",
+    "score": "Risk Score"
+  }
+}
