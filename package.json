@@ -25,11 +25,13 @@
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@react-oauth/google": "^0.12.2",
     "@tanstack/react-router": "^1.136.11",
     "@tanstack/react-router-with-query": "^1.130.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.7",
+    "jspdf": "^3.0.4",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",
@@ -38,7 +40,8 @@
     "react-leaflet-cluster": "^3.1.1",
     "recharts": "^3.4.1",
     "tailwind-merge": "^3.4.0",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.17",

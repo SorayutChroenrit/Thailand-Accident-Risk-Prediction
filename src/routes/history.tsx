@@ -15,10 +15,15 @@ import {
   MapPin,
 } from "lucide-react";
 import { accidents, riskLocations, severityLabels } from "~/lib/mock-data";
-import { useLanguage } from "~/hooks/useLanguage";
+import { useLanguage } from "~/contexts/LanguageContext";
+import { ProtectedRoute } from "~/components/ProtectedRoute";
 
 export const Route = createFileRoute("/history")({
-  component: HistoryPage,
+  component: () => (
+    <ProtectedRoute>
+      <HistoryPage />
+    </ProtectedRoute>
+  ),
 });
 
 function HistoryPage() {

@@ -24,11 +24,104 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { provinces } from "~/lib/mock-data";
-import { useLanguage } from "~/hooks/useLanguage";
+import { useLanguage } from "~/contexts/LanguageContext";
+import { ProtectedRoute } from "~/components/ProtectedRoute";
+import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/reports")({
-  component: ReportsPage,
+  component: () => (
+    <ProtectedRoute>
+      <ReportsPage />
+    </ProtectedRoute>
+  ),
 });
+
+// Generate mock report data
+const generateReportData = (
+  reportType: string,
+  dateRange: { start: string; end: string },
+  provinceId: string,
+) => {
+  const selectedProvinceName =
+    provinceId === "all"
+      ? "All Provinces"
+      : provinces.find((p) => p.id.toString() === provinceId)?.name_en ||
+        "Unknown";
+
+  // Mock data for reports
+  const summaryData = [
+    { province: "Bangkok", accidents: 245, risk_score: 78, predictions: 312 },
+    { province: "Chiang Mai", accidents: 89, risk_score: 45, predictions: 156 },
+    { province: "Phuket", accidents: 67, risk_score: 52, predictions: 98 },
+    { province: "Khon Kaen", accidents: 54, risk_score: 38, predictions: 87 },
+    { province: "Songkhla", accidents: 72, risk_score: 48, predictions: 112 },
+  ];
+
+  const detailedData = [
+    {
+      date: "2024-01-05",
+      location: "Sukhumvit Road",
+      type: "Collision",
+      severity: "High",
+      time: "18:30",
+    },
+    {
+      date: "2024-01-08",
+      location: "Rama IV",
+      type: "Motorcycle",
+      severity: "Medium",
+      time: "08:15",
+    },
+    {
+      date: "2024-01-12",
+      location: "Sathorn",
+      type: "Pedestrian",
+      severity: "Low",
+      time: "14:20",
+    },
+    {
+      date: "2024-01-15",
+      location: "Silom",
+      type: "Collision",
+      severity: "High",
+      time: "17:45",
+    },
+    {
+      date: "2024-01-20",
+      location: "Ratchadaphisek",
+      type: "Motorcycle",
+      severity: "Medium",
+      time: "09:00",
+    },
+  ];
+
+  const trendsData = [
+    { month: "October", accidents: 156, change: "+5%" },
+    { month: "November", accidents: 189, change: "+21%" },
+    { month: "December", accidents: 234, change: "+24%" },
+    { month: "January", accidents: 198, change: "-15%" },
+  ];
+
+  const predictionsData = [
+    { metric: "Accuracy", value: "87.5%" },
+    { metric: "Precision", value: "82.3%" },
+    { metric: "Recall", value: "89.1%" },
+    { metric: "F1 Score", value: "85.6%" },
+    { metric: "Total Predictions", value: "1,245" },
+  ];
+
+  return {
+    reportType,
+    dateRange,
+    province: selectedProvinceName,
+    generatedAt: new Date().toLocaleString(),
+    summaryData,
+    detailedData,
+    trendsData,
+    predictionsData,
+  };
+};
 
 function ReportsPage() {
   const { language } = useLanguage();
@@ -39,6 +132,7 @@ function ReportsPage() {
   });
   const [selectedProvince, setSelectedProvince] = useState("all");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "excel">("pdf");
 
   const reportTypes = [
     {
@@ -102,15 +196,221 @@ function ReportsPage() {
     },
   ];
 
+  // Generate PDF Report
+  const generatePDF = (data: ReturnType<typeof generateReportData>) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(20);
+    doc.text("Thailand Accident Risk Report", pageWidth / 2, 20, {
+      align: "center",
+    });
+
+    // Report Info
+    doc.setFontSize(10);
+    doc.text(
+      `Report Type: ${data.reportType.charAt(0).toUpperCase() + data.reportType.slice(1)}`,
+      20,
+      35,
+    );
+    doc.text(
+      `Date Range: ${data.dateRange.start} to ${data.dateRange.end}`,
+      20,
+      42,
+    );
+    doc.text(`Province: ${data.province}`, 20, 49);
+    doc.text(`Generated: ${data.generatedAt}`, 20, 56);
+
+    // Line separator
+    doc.setLineWidth(0.5);
+    doc.line(20, 62, pageWidth - 20, 62);
+
+    let yPosition = 75;
+
+    // Content based on report type
+    if (data.reportType === "summary") {
+      doc.setFontSize(14);
+      doc.text("Accident Summary by Province", 20, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(9);
+      // Table header
+      doc.setFont(undefined, "bold");
+      doc.text("Province", 20, yPosition);
+      doc.text("Accidents", 70, yPosition);
+      doc.text("Risk Score", 110, yPosition);
+      doc.text("Predictions", 150, yPosition);
+      doc.setFont(undefined, "normal");
+      yPosition += 7;
+
+      // Table data
+      data.summaryData.forEach((row) => {
+        doc.text(row.province, 20, yPosition);
+        doc.text(row.accidents.toString(), 70, yPosition);
+        doc.text(row.risk_score.toString(), 110, yPosition);
+        doc.text(row.predictions.toString(), 150, yPosition);
+        yPosition += 6;
+      });
+    } else if (data.reportType === "detailed") {
+      doc.setFontSize(14);
+      doc.text("Detailed Accident Analysis", 20, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(8);
+      doc.setFont(undefined, "bold");
+      doc.text("Date", 20, yPosition);
+      doc.text("Location", 45, yPosition);
+      doc.text("Type", 95, yPosition);
+      doc.text("Severity", 130, yPosition);
+      doc.text("Time", 165, yPosition);
+      doc.setFont(undefined, "normal");
+      yPosition += 7;
+
+      data.detailedData.forEach((row) => {
+        doc.text(row.date, 20, yPosition);
+        doc.text(row.location, 45, yPosition);
+        doc.text(row.type, 95, yPosition);
+        doc.text(row.severity, 130, yPosition);
+        doc.text(row.time, 165, yPosition);
+        yPosition += 6;
+      });
+    } else if (data.reportType === "trends") {
+      doc.setFontSize(14);
+      doc.text("Accident Trends", 20, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, "bold");
+      doc.text("Month", 20, yPosition);
+      doc.text("Accidents", 70, yPosition);
+      doc.text("Change", 120, yPosition);
+      doc.setFont(undefined, "normal");
+      yPosition += 7;
+
+      data.trendsData.forEach((row) => {
+        doc.text(row.month, 20, yPosition);
+        doc.text(row.accidents.toString(), 70, yPosition);
+        doc.text(row.change, 120, yPosition);
+        yPosition += 6;
+      });
+    } else if (data.reportType === "predictions") {
+      doc.setFontSize(14);
+      doc.text("Prediction Model Performance", 20, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, "bold");
+      doc.text("Metric", 20, yPosition);
+      doc.text("Value", 100, yPosition);
+      doc.setFont(undefined, "normal");
+      yPosition += 7;
+
+      data.predictionsData.forEach((row) => {
+        doc.text(row.metric, 20, yPosition);
+        doc.text(row.value, 100, yPosition);
+        yPosition += 6;
+      });
+    }
+
+    // Footer
+    doc.setFontSize(8);
+    doc.text(
+      "Generated by Thailand Accident Risk Prediction System",
+      pageWidth / 2,
+      280,
+      { align: "center" },
+    );
+
+    // Save
+    const fileName = `${data.reportType}_report_${data.dateRange.start}_${data.dateRange.end}.pdf`;
+    doc.save(fileName);
+  };
+
+  // Generate Excel Report
+  const generateExcel = (data: ReturnType<typeof generateReportData>) => {
+    const workbook = XLSX.utils.book_new();
+
+    // Info sheet
+    const infoData = [
+      ["Thailand Accident Risk Report"],
+      [""],
+      [
+        "Report Type",
+        data.reportType.charAt(0).toUpperCase() + data.reportType.slice(1),
+      ],
+      ["Date Range", `${data.dateRange.start} to ${data.dateRange.end}`],
+      ["Province", data.province],
+      ["Generated", data.generatedAt],
+    ];
+    const infoSheet = XLSX.utils.aoa_to_sheet(infoData);
+    XLSX.utils.book_append_sheet(workbook, infoSheet, "Info");
+
+    // Data sheet based on report type
+    let dataSheet;
+    let sheetName;
+
+    if (data.reportType === "summary") {
+      const headers = ["Province", "Accidents", "Risk Score", "Predictions"];
+      const rows = data.summaryData.map((row) => [
+        row.province,
+        row.accidents,
+        row.risk_score,
+        row.predictions,
+      ]);
+      dataSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      sheetName = "Summary";
+    } else if (data.reportType === "detailed") {
+      const headers = ["Date", "Location", "Type", "Severity", "Time"];
+      const rows = data.detailedData.map((row) => [
+        row.date,
+        row.location,
+        row.type,
+        row.severity,
+        row.time,
+      ]);
+      dataSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      sheetName = "Detailed";
+    } else if (data.reportType === "trends") {
+      const headers = ["Month", "Accidents", "Change"];
+      const rows = data.trendsData.map((row) => [
+        row.month,
+        row.accidents,
+        row.change,
+      ]);
+      dataSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      sheetName = "Trends";
+    } else {
+      const headers = ["Metric", "Value"];
+      const rows = data.predictionsData.map((row) => [row.metric, row.value]);
+      dataSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      sheetName = "Predictions";
+    }
+
+    XLSX.utils.book_append_sheet(workbook, dataSheet, sheetName);
+
+    // Save
+    const fileName = `${data.reportType}_report_${data.dateRange.start}_${data.dateRange.end}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsGenerating(false);
-    alert(
-      language === "en"
-        ? "Report generated successfully!"
-        : "สร้างรายงานสำเร็จ!",
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const reportData = generateReportData(
+      selectedReport,
+      dateRange,
+      selectedProvince,
     );
+
+    if (exportFormat === "pdf") {
+      generatePDF(reportData);
+    } else {
+      generateExcel(reportData);
+    }
+
+    setIsGenerating(false);
   };
 
   return (
@@ -257,11 +557,21 @@ function ReportsPage() {
                     {language === "en" ? "Export Format" : "รูปแบบไฟล์"}
                   </label>
                   <div className="flex gap-3 mt-2">
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`gap-2 ${exportFormat === "pdf" ? "bg-red-500 text-white border-red-500 hover:bg-red-600 hover:text-white" : "hover:bg-red-50 hover:text-red-600 hover:border-red-300"}`}
+                      onClick={() => setExportFormat("pdf")}
+                    >
                       <File className="h-4 w-4" />
                       PDF
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`gap-2 ${exportFormat === "excel" ? "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white" : "hover:bg-green-50 hover:text-green-600 hover:border-green-300"}`}
+                      onClick={() => setExportFormat("excel")}
+                    >
                       <FileSpreadsheet className="h-4 w-4" />
                       Excel
                     </Button>

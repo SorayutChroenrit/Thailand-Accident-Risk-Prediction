@@ -18,7 +18,7 @@ import {
   Home,
 } from "lucide-react";
 import { riskLocations, severityLabels } from "~/lib/mock-data";
-import { useLanguage } from "~/hooks/useLanguage";
+import { useLanguage } from "~/contexts/LanguageContext";
 
 export const Route = createFileRoute("/map")({
   component: MapPage,
@@ -30,7 +30,7 @@ const THAILAND_ZOOM = 6;
 const BANGKOK_ZOOM = 11;
 
 function MapPage() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [selectedLocation, setSelectedLocation] = useState<
     (typeof riskLocations)[0] | null
   >(null);

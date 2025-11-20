@@ -1,9 +1,9 @@
-import { Link } from '@tanstack/react-router'
-import { MapPin, Github, Mail, ExternalLink } from 'lucide-react'
-import { useLanguage } from '~/hooks/useLanguage'
+import { Link } from "@tanstack/react-router";
+import { MapPin, Github, Mail, ExternalLink } from "lucide-react";
+import { useLanguage } from "~/contexts/LanguageContext";
 
 export function Footer() {
-  const { t } = useLanguage()
+  const { t } = useLanguage();
 
   return (
     <footer className="border-t bg-card">
@@ -15,35 +15,47 @@ export function Footer() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
                 <MapPin className="h-5 w-5 text-white" />
               </div>
-              <span className="text-lg font-bold">{t('common.appName')}</span>
+              <span className="text-lg font-bold">{t("common.appName")}</span>
             </Link>
             <p className="text-sm text-muted-foreground">
-              {t('footer.description')}
+              {t("footer.description")}
             </p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h3 className="font-semibold mb-4">{t('footer.links')}</h3>
+            <h3 className="font-semibold mb-4">{t("footer.links")}</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link to="/map" className="text-muted-foreground hover:text-foreground transition-colors">
-                  {t('nav.map')}
+                <Link
+                  to="/map"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t("nav.map")}
                 </Link>
               </li>
               <li>
-                <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
-                  {t('nav.dashboard')}
+                <Link
+                  to="/dashboard"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t("nav.dashboard")}
                 </Link>
               </li>
               <li>
-                <Link to="/predict" className="text-muted-foreground hover:text-foreground transition-colors">
-                  {t('nav.predict')}
+                <Link
+                  to="/predict"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t("nav.predict")}
                 </Link>
               </li>
               <li>
-                <Link to="/history" className="text-muted-foreground hover:text-foreground transition-colors">
-                  {t('nav.history')}
+                <Link
+                  to="/history"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t("nav.history")}
                 </Link>
               </li>
             </ul>
@@ -51,11 +63,14 @@ export function Footer() {
 
           {/* Resources */}
           <div>
-            <h3 className="font-semibold mb-4">{t('footer.resources')}</h3>
+            <h3 className="font-semibold mb-4">{t("footer.resources")}</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">
-                  {t('nav.about')}
+                <Link
+                  to="/about"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t("nav.about")}
                 </Link>
               </li>
               <li>
@@ -85,7 +100,7 @@ export function Footer() {
 
           {/* Contact */}
           <div>
-            <h3 className="font-semibold mb-4">{t('footer.contact')}</h3>
+            <h3 className="font-semibold mb-4">{t("footer.contact")}</h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <a
@@ -112,9 +127,12 @@ export function Footer() {
         </div>
 
         <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {t('common.appName')}. {t('footer.rights')}.</p>
+          <p>
+            &copy; {new Date().getFullYear()} {t("common.appName")}.{" "}
+            {t("footer.rights")}.
+          </p>
         </div>
       </div>
     </footer>
-  )
+  );
 }

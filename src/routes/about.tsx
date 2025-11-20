@@ -17,7 +17,7 @@ import {
   Github,
   ExternalLink,
 } from "lucide-react";
-import { useLanguage } from "~/hooks/useLanguage";
+import { useLanguage } from "~/contexts/LanguageContext";
 
 export const Route = createFileRoute("/about")({
   component: AboutPage,
