@@ -14,8 +14,12 @@
             href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
             rel="stylesheet"
         />
-        <!-- Longdo Map API -->
-        <script src="https://api.longdo.com/map/?key=370a1776e0879ff8bb99731798210fd7"></script>
+        <!-- Longdo Map API - Load synchronously to prevent timing issues -->
+        <script
+            src="https://api.longdo.com/map/?key=370a1776e0879ff8bb99731798210fd7"
+            onload="console.log('Longdo Map script loaded')"
+            onerror="console.error('Failed to load Longdo Map script')"
+        ></script>
     </head>
     <body>
         <div id="root"></div>

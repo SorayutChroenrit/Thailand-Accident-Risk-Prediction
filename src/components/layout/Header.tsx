@@ -15,6 +15,7 @@ import {
   LogIn,
   LogOut,
   User,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -27,8 +28,12 @@ export function Header() {
   const { user, isAuthenticated, logout } = useAuth();
 
   const navItems = [
-    { href: "/map", label: t("nav.map"), icon: Map },
     { href: "/dashboard", label: t("nav.dashboard"), icon: LayoutDashboard },
+    {
+      href: "/risk-map",
+      label: language === "en" ? "Risk Map" : "แผนที่ความเสี่ยง",
+      icon: Map,
+    },
     { href: "/predict", label: t("nav.predict"), icon: Crosshair },
     {
       href: "/route-analysis",

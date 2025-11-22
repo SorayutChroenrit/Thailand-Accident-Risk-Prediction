@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RouteAnalysisRouteImport } from './routes/route-analysis'
-import { Route as RiskMapRouteImport } from './routes/risk-map'
+import { Route as RiskMapImprovedRouteImport } from './routes/risk-map-improved'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PredictRouteImport } from './routes/predict'
 import { Route as LoginRouteImport } from './routes/login'
@@ -30,9 +30,9 @@ const RouteAnalysisRoute = RouteAnalysisRouteImport.update({
   path: '/route-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RiskMapRoute = RiskMapRouteImport.update({
-  id: '/risk-map',
-  path: '/risk-map',
+const RiskMapImprovedRoute = RiskMapImprovedRouteImport.update({
+  id: '/risk-map-improved',
+  path: '/risk-map-improved',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsRoute = ReportsRouteImport.update({
@@ -79,7 +79,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/predict': typeof PredictRoute
   '/reports': typeof ReportsRoute
-  '/risk-map': typeof RiskMapRoute
+  '/risk-map-improved': typeof RiskMapImprovedRoute
   '/route-analysis': typeof RouteAnalysisRoute
   '/settings': typeof SettingsRoute
 }
@@ -91,7 +91,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/predict': typeof PredictRoute
   '/reports': typeof ReportsRoute
-  '/risk-map': typeof RiskMapRoute
+  '/risk-map-improved': typeof RiskMapImprovedRoute
   '/route-analysis': typeof RouteAnalysisRoute
   '/settings': typeof SettingsRoute
 }
@@ -104,7 +104,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/predict': typeof PredictRoute
   '/reports': typeof ReportsRoute
-  '/risk-map': typeof RiskMapRoute
+  '/risk-map-improved': typeof RiskMapImprovedRoute
   '/route-analysis': typeof RouteAnalysisRoute
   '/settings': typeof SettingsRoute
 }
@@ -118,7 +118,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/predict'
     | '/reports'
-    | '/risk-map'
+    | '/risk-map-improved'
     | '/route-analysis'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -130,7 +130,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/predict'
     | '/reports'
-    | '/risk-map'
+    | '/risk-map-improved'
     | '/route-analysis'
     | '/settings'
   id:
@@ -142,7 +142,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/predict'
     | '/reports'
-    | '/risk-map'
+    | '/risk-map-improved'
     | '/route-analysis'
     | '/settings'
   fileRoutesById: FileRoutesById
@@ -155,7 +155,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PredictRoute: typeof PredictRoute
   ReportsRoute: typeof ReportsRoute
-  RiskMapRoute: typeof RiskMapRoute
+  RiskMapImprovedRoute: typeof RiskMapImprovedRoute
   RouteAnalysisRoute: typeof RouteAnalysisRoute
   SettingsRoute: typeof SettingsRoute
 }
@@ -176,11 +176,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RouteAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/risk-map': {
-      id: '/risk-map'
-      path: '/risk-map'
-      fullPath: '/risk-map'
-      preLoaderRoute: typeof RiskMapRouteImport
+    '/risk-map-improved': {
+      id: '/risk-map-improved'
+      path: '/risk-map-improved'
+      fullPath: '/risk-map-improved'
+      preLoaderRoute: typeof RiskMapImprovedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reports': {
@@ -243,7 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PredictRoute: PredictRoute,
   ReportsRoute: ReportsRoute,
-  RiskMapRoute: RiskMapRoute,
+  RiskMapImprovedRoute: RiskMapImprovedRoute,
   RouteAnalysisRoute: RouteAnalysisRoute,
   SettingsRoute: SettingsRoute,
 }
