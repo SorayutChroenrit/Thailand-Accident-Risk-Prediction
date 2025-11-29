@@ -197,6 +197,7 @@ const calculateRealRoutes = async (
           baseRisk: routeType.baseRisk,
           tollCost: Math.round(distance * 3), // Estimate
           fuelCost: Math.round(distance * 3.5), // Estimate
+          guide: routeData.guide, // Return guide points for geometry
         };
       } else {
         throw new Error("No route data returned");
@@ -303,7 +304,10 @@ function RouteAnalysisPage() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().split("T")[0];
   });
-  const [departureTime, setDepartureTime] = useState("06:00");
+  const [departureTime, setDepartureTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  });
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -346,7 +350,7 @@ function RouteAnalysisPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `https://search.longdo.com/mapsearch/json/search?keyword=${encodeURIComponent(query)}&limit=5&key=370a1776e0879ff8bb99731798210fd7`,
+        `https://search.longdo.com/mapsearch/json/search?keyword=${encodeURIComponent(query)}&limit=100&key=370a1776e0879ff8bb99731798210fd7`,
       );
       const data = await response.json();
 
@@ -414,12 +418,43 @@ function RouteAnalysisPage() {
     };
   }, [toSearch]);
 
+  // Helper to calculate distance from point to line segment
+  const distanceFromLine = (pLat: number, pLng: number, l1Lat: number, l1Lng: number, l2Lat: number, l2Lng: number) => {
+    const A = pLat - l1Lat;
+    const B = pLng - l1Lng;
+    const C = l2Lat - l1Lat;
+    const D = l2Lng - l1Lng;
+
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
+
+    let xx, yy;
+
+    if (param < 0) {
+      xx = l1Lat;
+      yy = l1Lng;
+    } else if (param > 1) {
+      xx = l2Lat;
+      yy = l2Lng;
+    } else {
+      xx = l1Lat + param * C;
+      yy = l1Lng + param * D;
+    }
+
+    const dx = pLat - xx;
+    const dy = pLng - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
   // Load accident events along the route
   const loadRouteEvents = async (
     fromLat: number,
     fromLng: number,
     toLat: number,
     toLng: number,
+    routeGeometry: any[] = []
   ) => {
     setLoadingEvents(true);
     try {
@@ -439,20 +474,54 @@ function RouteAnalysisPage() {
       );
       const data = await response.json();
 
-      // Filter events that are near the route (within 5km buffer)
+      // Filter events that are near the route
       const events = (data.events || []).filter((event: any) => {
-        // Simple bounding box check
+        // 1. Bounding box check (broad filter)
         const minLat = Math.min(fromLat, toLat) - 0.05;
         const maxLat = Math.max(fromLat, toLat) + 0.05;
         const minLng = Math.min(fromLng, toLng) - 0.05;
         const maxLng = Math.max(fromLng, toLng) + 0.05;
 
-        return (
-          event.lat >= minLat &&
-          event.lat <= maxLat &&
-          event.lon >= minLng &&
-          event.lon <= maxLng
-        );
+        if (
+          event.lat < minLat ||
+          event.lat > maxLat ||
+          event.lon < minLng ||
+          event.lon > maxLng
+        ) {
+          return false;
+        }
+
+        // 2. Distance from route geometry check (finer filter)
+        if (routeGeometry && routeGeometry.length > 0) {
+          // Check distance from any segment of the route polyline
+          let minDistance = Infinity;
+          
+          for (let i = 0; i < routeGeometry.length - 1; i++) {
+            const p1 = routeGeometry[i];
+            const p2 = routeGeometry[i + 1];
+            
+            // Longdo guide points have lat/lon properties
+            // Note: Longdo API might return them as 'lat', 'lon' or 'lat', 'long' depending on version
+            // We assume standard lat/lon here based on typical Longdo response
+            const p1Lat = p1.lat || p1.latitude;
+            const p1Lng = p1.lon || p1.long || p1.longitude;
+            const p2Lat = p2.lat || p2.latitude;
+            const p2Lng = p2.lon || p2.long || p2.longitude;
+            
+            if (p1Lat && p1Lng && p2Lat && p2Lng) {
+               const dist = distanceFromLine(event.lat, event.lon, p1Lat, p1Lng, p2Lat, p2Lng);
+               if (dist < minDistance) minDistance = dist;
+            }
+          }
+          
+          // 0.005 degrees is roughly 500 meters. 
+          // We use a tighter threshold for actual route geometry.
+          return minDistance < 0.005;
+        }
+
+        // Fallback: Distance from direct line check if no geometry
+        const dist = distanceFromLine(event.lat, event.lon, fromLat, fromLng, toLat, toLng);
+        return dist < 0.05;
       });
 
       // Use ML to predict severity for each accident point
@@ -489,9 +558,11 @@ function RouteAnalysisPage() {
 
       setRouteEvents(eventsWithPredictions);
       console.log(`📍 Found ${events.length} events with ML predictions`);
+      return eventsWithPredictions; // Return for use in analysis
     } catch (error) {
       console.error("Error loading route events:", error);
       setRouteEvents([]);
+      return [];
     } finally {
       setLoadingEvents(false);
     }
@@ -503,14 +574,6 @@ function RouteAnalysisPage() {
     setIsAnalyzing(true);
 
     try {
-      // Load events along the route
-      await loadRouteEvents(
-        fromLocation.lat,
-        fromLocation.lng,
-        toLocation.lat,
-        toLocation.lng,
-      );
-
       // Prepare vehicle data for ML prediction
       const vehicleData: VehicleData = {
         type: vehicleType,
@@ -568,7 +631,7 @@ function RouteAnalysisPage() {
         temp: f.temp,
       }));
 
-      // Get real route options from Longdo Map
+      // 3. Get real route options from Longdo Map FIRST to get geometry
       console.log("🛣️ Calculating real routes with Longdo API...");
       const routes = await calculateRealRoutes(
         fromLocation.lat,
@@ -579,28 +642,38 @@ function RouteAnalysisPage() {
         { ...predictionData, mlRouteRisk }, // Pass ML risk
       );
 
-      const recommendedRoute = routes.find((r) => r.recommended);
+      // 4. Load events along the route using the geometry of the recommended route
+      const recommendedRoute = routes.find((r) => r.recommended) || routes[0];
+      const routeGeometry = recommendedRoute?.guide || [];
+      
+      const events = await loadRouteEvents(
+        fromLocation.lat,
+        fromLocation.lng,
+        toLocation.lat,
+        toLocation.lng,
+        routeGeometry
+      );
 
       const tips: any[] = [];
 
       // Add tips based on accident events on route
-      if (routeEvents.length > 20) {
+      if (events.length > 20) {
         tips.unshift({
           icon: <AlertTriangle className="h-4 w-4" />,
-          text_en: `High risk route: ${routeEvents.length} accidents in past month - Consider alternative route`,
-          text_th: `เส้นทางเสี่ยงสูง: เกิดอุบัติเหตุ ${routeEvents.length} ครั้งในเดือนที่ผ่านมา - พิจารณาใช้เส้นทางอื่น`,
+          text_en: `High risk route: ${events.length} accidents in past month - Consider alternative route`,
+          text_th: `เส้นทางเสี่ยงสูง: เกิดอุบัติเหตุ ${events.length} ครั้งในเดือนที่ผ่านมา - พิจารณาใช้เส้นทางอื่น`,
         });
-      } else if (routeEvents.length > 10) {
+      } else if (events.length > 10) {
         tips.unshift({
           icon: <AlertTriangle className="h-4 w-4" />,
-          text_en: `Moderate risk: ${routeEvents.length} accidents detected - Drive with extra caution`,
-          text_th: `ความเสี่ยงปานกลาง: พบอุบัติเหตุ ${routeEvents.length} จุด - ขับขี่ด้วยความระมัดระวัง`,
+          text_en: `Moderate risk: ${events.length} accidents detected - Drive with extra caution`,
+          text_th: `ความเสี่ยงปานกลาง: พบอุบัติเหตุ ${events.length} จุด - ขับขี่ด้วยความระมัดระวัง`,
         });
-      } else if (routeEvents.length > 0) {
+      } else if (events.length > 0) {
         tips.unshift({
           icon: <Shield className="h-4 w-4" />,
-          text_en: `${routeEvents.length} accident points detected - Stay alert in marked areas`,
-          text_th: `พบจุดอุบัติเหตุ ${routeEvents.length} จุด - ระมัดระวังบริเวณที่ทำเครื่องหมาย`,
+          text_en: `${events.length} accident points detected - Stay alert in marked areas`,
+          text_th: `พบจุดอุบัติเหตุ ${events.length} จุด - ระมัดระวังบริเวณที่ทำเครื่องหมาย`,
         });
       }
 
@@ -615,7 +688,7 @@ function RouteAnalysisPage() {
       // Add safety recommendations from API based on real conditions
       const safetyRecommendations = getSafetyRecommendations(
         predictionData,
-        routeEvents.length,
+        events.length,
       );
 
       // Convert safety recommendations to tip format

@@ -225,70 +225,160 @@ class ReportRequest(BaseModel):
     category: str  # accident, construction, flooding, pothole, lighting, other
     reporter_name: Optional[str] = "Anonymous"
 
-# In-memory storage for reports (MVP)
-USER_REPORTS = []
-
 class ReportStatusUpdate(BaseModel):
     status: str # approved, rejected
 
 @app.post("/reports")
 async def create_report(report: ReportRequest):
-    """Submit a new user report"""
-    new_report = {
-        "id": f"report_{len(USER_REPORTS) + 1}",
-        "title": report.title,
-        "description": report.description,
-        "lat": report.lat,
-        "lon": report.lon,
-        "category": report.category,
-        "severity": 5,  # Default medium severity
-        "pubDate": datetime.now().isoformat(),
-        "source": "User Report",
-        "reporter": report.reporter_name,
-        "upvotes": 0,
-        "status": "pending" # Default status
-    }
-    print(f"📝 New report received: {new_report['title']} (Status: {new_report['status']})")
-    USER_REPORTS.append(new_report)
-    return {"status": "success", "report": new_report}
+    """Submit a new user report to Supabase (traffic_events table)"""
+    try:
+        from supabase_traffic_client import get_supabase_traffic_client
+        import uuid
+        client = get_supabase_traffic_client()
+        
+        now = datetime.now()
+        
+        # Map to traffic_events schema
+        new_event = {
+            "event_id": f"user_{uuid.uuid4().hex[:8]}",
+            "latitude": report.lat,
+            "longitude": report.lon,
+            "event_type": report.category,
+            "severity": "medium", # Default to medium as per check constraint
+            "title_th": report.title,
+            "description_th": report.description, # Reporter name can be stored here or separate if schema allows
+            "event_date": now.isoformat(),
+            "year": now.year,
+            "month": now.month,
+            "day_of_week": now.weekday(),
+            "hour": now.hour,
+            "source": "User Report",
+            "verified": False, # Pending
+            # Store extra metadata in description or a JSON field if available, 
+            # for now appending reporter to description to keep it simple
+            "description_en": f"Reporter: {report.reporter_name}" 
+        }
+        
+        response = client.supabase.table("traffic_events").insert(new_event).execute()
+        
+        if response.data:
+            print(f"📝 New report saved to traffic_events: {report.title}")
+            # Map back to frontend format for immediate display
+            r = response.data[0]
+            return {
+                "status": "success", 
+                "report": {
+                    "id": str(r["id"]),
+                    "title": r["title_th"],
+                    "description": r["description_th"],
+                    "lat": r["latitude"],
+                    "lon": r["longitude"],
+                    "category": r["event_type"],
+                    "severity": 5,
+                    "pubDate": r["event_date"],
+                    "source": r["source"],
+                    "reporter": report.reporter_name,
+                    "status": "pending"
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save report")
+            
+    except Exception as e:
+        print(f"❌ Error saving report: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/reports")
 async def get_reports(status: str = "approved"):
-    """Get user reports filtered by status"""
-    print(f"🔍 Fetching reports with status: {status}")
-    print(f"📊 Total reports in memory: {len(USER_REPORTS)}")
-    
-    # Filter out reports older than 24 hours (only for approved reports on map)
-    active_reports = []
-    current_time = datetime.now()
-    
-    for report in USER_REPORTS:
-        # Check status
-        if report.get("status", "approved") != status:
-            continue
+    """Get user reports from traffic_events table"""
+    try:
+        from supabase_traffic_client import get_supabase_traffic_client
+        client = get_supabase_traffic_client()
+        
+        # Map status to verified flag
+        is_verified = (status == "approved")
+        
+        query = client.supabase.table("traffic_events").select("*").eq("source", "User Report")
+        
+        # Filter by verification status
+        # Note: 'rejected' isn't directly supported by boolean verified, 
+        # so we might treat verified=False as pending. 
+        # If we need rejected, we might need a separate status column or assume deleted = rejected.
+        # For now: Pending = verified is False (or null), Approved = verified is True.
+        
+        if status == "pending":
+            query = query.is_("verified", "false")
+        elif status == "approved":
+            query = query.is_("verified", "true")
+            # Time filter for approved
+            one_day_ago = (datetime.now() - pd.Timedelta(days=1)).isoformat()
+            query = query.gte("event_date", one_day_ago)
             
-        # For approved reports, check time limit
-        if status == "approved":
-            report_time = datetime.fromisoformat(report["pubDate"])
-            if (current_time - report_time).total_seconds() < 86400:  # 24 hours
-                active_reports.append(report)
-        else:
-            # For pending/rejected, show all (or maybe limit to recent too?)
-            # For now show all pending for admins
-            active_reports.append(report)
+        response = query.order("event_date", desc=True).execute()
+        
+        reports = []
+        for r in response.data:
+            # Extract reporter from description_en if possible
+            reporter = "Anonymous"
+            if r.get("description_en") and "Reporter: " in r["description_en"]:
+                reporter = r["description_en"].split("Reporter: ")[1]
+
+            reports.append({
+                "id": str(r["id"]),
+                "title": r["title_th"],
+                "description": r["description_th"],
+                "lat": r["latitude"],
+                "lon": r["longitude"],
+                "category": r["event_type"],
+                "severity": 5, # Map back to int for frontend
+                "pubDate": r["event_date"],
+                "source": r["source"],
+                "reporter": reporter,
+                "status": "approved" if r["verified"] else "pending",
+                "upvotes": 0
+            })
             
-    print(f"✅ Returning {len(active_reports)} reports")
-    return {"reports": active_reports}
+        print(f"✅ Returning {len(reports)} reports from traffic_events (Status: {status})")
+        return {"reports": reports}
+        
+    except Exception as e:
+        print(f"❌ Error fetching reports: {e}")
+        return {"reports": []}
 
 @app.put("/reports/{report_id}/status")
 async def update_report_status(report_id: str, status_update: ReportStatusUpdate):
-    """Approve or reject a report"""
-    for report in USER_REPORTS:
-        if report["id"] == report_id:
-            report["status"] = status_update.status
-            return {"status": "success", "report": report}
+    """Approve (verify) or reject (delete) a report"""
+    try:
+        from supabase_traffic_client import get_supabase_traffic_client
+        client = get_supabase_traffic_client()
+        
+        if status_update.status == "approved":
+            # Set verified = true
+            response = (
+                client.supabase.table("traffic_events")
+                .update({"verified": True})
+                .eq("id", report_id)
+                .execute()
+            )
+        else:
+            # Rejected -> Delete the row? Or just keep it unverified?
+            # Deleting is cleaner for "Rejected" in this schema
+            response = (
+                client.supabase.table("traffic_events")
+                .delete()
+                .eq("id", report_id)
+                .execute()
+            )
+            return {"status": "success", "message": "Report rejected and deleted"}
+        
+        if response.data:
+            return {"status": "success", "report": response.data[0]}
+        else:
+            raise HTTPException(status_code=404, detail="Report not found")
             
-    raise HTTPException(status_code=404, detail="Report not found")
+    except Exception as e:
+        print(f"❌ Error updating report status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # =============================================================================
 # LOAD MODELS - DIRECT SEVERITY PREDICTION MODEL

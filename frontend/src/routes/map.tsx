@@ -48,6 +48,7 @@ interface TrafficEvent {
   location?: string;
   source: string;
   year?: number;
+  reporter?: string;
 }
 
 function MapPage() {
@@ -196,6 +197,7 @@ function MapPage() {
       location: `Lat: ${r.lat.toFixed(4)}, Lon: ${r.lon.toFixed(4)}`,
       source: "User Report",
       year: new Date(r.pubDate).getFullYear(),
+      reporter: r.reporter,
     }));
 
     // Combine database events with user reports
@@ -324,6 +326,11 @@ function MapPage() {
             ">
               ${event.location ? `<div style="margin-bottom: 4px; white-space: pre-wrap; word-break: break-word;">${event.location}</div>` : ""}
               <div>${formatTime(event.pubDate)}</div>
+              ${
+                event.reporter
+                  ? `<div style="margin-top: 8px; font-weight: 500; color: #4b5563;">Cr. ${event.reporter}</div>`
+                  : ""
+              }
             </div>
           </div>
         `;
@@ -485,48 +492,9 @@ function MapPage() {
     console.log(`✅ Added ${filteredEvents.length} markers to map`);
   }, [filteredEvents]);
 
-  // Add user report markers
-  useEffect(() => {
-    if (!mapRef.current) return;
+  // User report markers are now handled by the main filteredEvents loop
+  // to ensure consistent UI and popup styling.
 
-    // Add markers for user reports
-    userReports.forEach((report) => {
-      // Check if marker already exists to avoid flickering (optional optimization)
-      
-      const marker = new window.longdo.Marker(
-        { lon: report.lon, lat: report.lat },
-        {
-          title: report.title,
-          icon: {
-            html: `<div
-              style="
-              cursor: pointer;
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
-              background: #ec4899;
-              width: 32px;
-              height: 32px;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              border: 2px solid white;
-            ">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                <path d="M12 8v4"/>
-                <path d="M12 16h.01"/>
-              </svg>
-            </div>`,
-            offset: { x: 16, y: 16 },
-          },
-          detail: `${report.description}\n\nแจ้งโดย: ${report.reporter || "Anonymous"}`,
-        }
-      );
-
-      mapRef.current.Overlays.add(marker);
-      // Store reference if needed for cleanup
-    });
-  }, [userReports]);
 
   // Get traffic index color and status
   const getTrafficIndexStatus = (index: number) => {
