@@ -39,14 +39,18 @@ export const Route = createFileRoute("/records")({
 
 const EVENT_CATEGORIES = [
   { id: "accident", label: "อุบัติเหตุ", color: "#dc2626" },
-  { id: "construction", label: "ก่อสร้าง", color: "#f59e0b" },
-  { id: "congestion", label: "รถติด", color: "#eab308" },
+  { id: "traffic_jam", label: "รถติด", color: "#ea580c" },
   { id: "flooding", label: "น้ำท่วม", color: "#3b82f6" },
+  { id: "construction", label: "ก่อสร้าง", color: "#f59e0b" },
+  { id: "pothole", label: "หลุมบ่อ", color: "#f97316" },
+  { id: "lighting", label: "ไฟทางดับ", color: "#eab308" },
+  { id: "traffic_light", label: "สัญญาณไฟเสีย", color: "#ef4444" },
+  { id: "breakdown", label: "รถเสีย", color: "#78716c" },
+  { id: "road_closed", label: "ถนนปิด", color: "#991b1b" },
+  { id: "fallen_tree", label: "ต้นไม้ล้ม", color: "#15803d" },
+  { id: "animal", label: "สัตว์บนถนน", color: "#b45309" },
+  { id: "visibility", label: "ทัศนวิสัยแย่", color: "#6b7280" },
   { id: "fire", label: "เพลิงไหม้", color: "#dc2626" },
-  { id: "breakdown", label: "รถเสีย", color: "#f97316" },
-  { id: "road_closed", label: "ถนนปิด", color: "#ef4444" },
-  { id: "diversion", label: "เบี่ยงจราจร", color: "#8b5cf6" },
-  { id: "roadwork", label: "ซ่อมถนน", color: "#fb923c" },
   { id: "other", label: "อื่นๆ", color: "#6b7280" },
 ];
 

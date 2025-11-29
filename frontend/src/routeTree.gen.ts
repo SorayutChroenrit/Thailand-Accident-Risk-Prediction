@@ -17,6 +17,7 @@ import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LabsRouteImport } from './routes/labs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -60,6 +61,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApprovalsRoute = ApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -74,6 +80,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/approvals': typeof ApprovalsRoute
   '/dashboard': typeof DashboardRoute
   '/labs': typeof LabsRoute
   '/login': typeof LoginRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/approvals': typeof ApprovalsRoute
   '/dashboard': typeof DashboardRoute
   '/labs': typeof LabsRoute
   '/login': typeof LoginRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/approvals': typeof ApprovalsRoute
   '/dashboard': typeof DashboardRoute
   '/labs': typeof LabsRoute
   '/login': typeof LoginRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/approvals'
     | '/dashboard'
     | '/labs'
     | '/login'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/approvals'
     | '/dashboard'
     | '/labs'
     | '/login'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/approvals'
     | '/dashboard'
     | '/labs'
     | '/login'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  ApprovalsRoute: typeof ApprovalsRoute
   DashboardRoute: typeof DashboardRoute
   LabsRoute: typeof LabsRoute
   LoginRoute: typeof LoginRoute
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/approvals': {
+      id: '/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof ApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  ApprovalsRoute: ApprovalsRoute,
   DashboardRoute: DashboardRoute,
   LabsRoute: LabsRoute,
   LoginRoute: LoginRoute,

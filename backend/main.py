@@ -7,6 +7,7 @@ ADDED: Accident cause filter
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -44,123 +45,250 @@ print("   POST /analytics/prescriptive")
 print("   GET  /analytics/health")
 
 # =============================================================================
-# TRAFFIC & ROAD CONDITION ENDPOINTS
+# TRAFFIC & ROAD CONDITION ENDPOINTS (HYBRID: Longdo API + Database)
 # =============================================================================
 
+LONGDO_API_KEY = os.getenv("LONGDO_API_KEY")
+
+def fetch_longdo_data(endpoint: str, params: Dict = None):
+    """Helper to fetch data from Longdo API"""
+    if not LONGDO_API_KEY:
+        print("⚠️ Warning: LONGDO_API_KEY not found in environment variables.")
+        return None
+        
+    url = f"https://api.longdo.com/traffic{endpoint}"
+    params = params or {}
+    params["key"] = LONGDO_API_KEY
+    
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            return response.json()
+        print(f"❌ Longdo API Error: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error fetching Longdo data: {e}")
+    return None
 
 @app.get("/traffic/density")
 async def get_traffic_density(lat: float, lon: float):
-    """Get traffic density at location (mock data for now)"""
-    hour = datetime.now().hour
-    is_rush_hour = (hour >= 7 and hour <= 9) or (hour >= 17 and hour <= 19)
-
-    # Mock traffic density (0-1 scale)
-    import random
-
-    density = 0.4  # base
-    if is_rush_hour:
-        density += 0.3
-    density += random.random() * 0.2
-    density = min(1, density)
-
-    # Average speed (km/h)
-    base_speed = 60
-    speed = base_speed * (1 - density * 0.7)
-
-    # Congestion level
-    congestion_level = "light"
-    if density > 0.7:
-        congestion_level = "heavy"
-    elif density > 0.5:
-        congestion_level = "moderate"
-
+    """Get traffic density from Longdo API (Inferred)"""
+    # Use Longdo Traffic Index to estimate density
+    data = fetch_longdo_data("/sys/index")
+    
+    density = 0.1 # Default
+    congestion = "light"
+    
+    if data and "index" in data:
+        idx = float(data["index"])
+        # Map 0-10 index to 0-1 density
+        density = min(1.0, idx / 10.0)
+        
+        if idx < 3: congestion = "light"
+        elif idx < 6: congestion = "moderate"
+        else: congestion = "heavy"
+        
     return {
         "density": round(density, 2),
-        "average_speed": round(speed),
-        "congestion_level": congestion_level,
+        "average_speed": 60 * (1 - density * 0.5), # Estimate speed
+        "congestion_level": congestion,
         "timestamp": datetime.now().isoformat(),
+        "source": "Longdo API"
     }
 
 
 @app.get("/traffic/index")
 async def get_traffic_index():
-    """Get traffic index (Longdo-style, 0-10 scale)"""
-    import random
-
-    hour = datetime.now().hour
-    is_rush_hour = (hour >= 7 and hour <= 9) or (hour >= 17 and hour <= 19)
-
-    index = 3  # base
-    if is_rush_hour:
-        index += 3
-    index += random.random() * 2
-    index = max(0, min(10, index))
-
+    """Get traffic index from Longdo API"""
+    data = fetch_longdo_data("/sys/index")
+    
+    if data and "index" in data:
+        index = float(data["index"])
+        return {
+            "current": round(index, 1),
+            "status": "clear"
+            if index < 3
+            else "moderate"
+            if index < 5
+            else "busy"
+            if index < 7
+            else "congested",
+            "timestamp": datetime.now().isoformat(),
+            "source": "Longdo API"
+        }
+    
     return {
-        "current": round(index, 1),
-        "status": "clear"
-        if index < 3
-        else "moderate"
-        if index < 5
-        else "busy"
-        if index < 7
-        else "congested",
+        "current": 0.0,
+        "status": "unknown",
         "timestamp": datetime.now().isoformat(),
+        "source": "Fallback"
     }
 
 
 @app.get("/road/condition")
 async def get_road_condition(lat: float, lon: float):
-    """Get road condition at location (mock data for now)"""
-    import random
-
-    qualities = ["excellent", "good", "fair", "poor"]
-    quality = random.choice(qualities)
-
+    """Get road condition (Static Default)"""
     return {
         "surface_type": "asphalt",
-        "quality": quality,
-        "lane_count": random.randint(2, 4),
-        "speed_limit": random.choice([60, 80, 90, 100, 120]),
-        "has_shoulder": random.random() > 0.3,
-        "lighting": "good" if random.random() > 0.4 else "poor",
-        "last_maintenance": (
-            datetime.now() - pd.Timedelta(days=random.randint(1, 365))
-        ).isoformat(),
+        "quality": "unknown", 
+        "lane_count": 2,
+        "speed_limit": 80,
+        "has_shoulder": True,
+        "lighting": "unknown",
+        "last_maintenance": None,
+        "source": "Default"
     }
 
 
 @app.get("/road/hazards")
 async def get_road_hazards(lat: float, lon: float, radius: float = 5):
-    """Get nearby road hazards (mock data for now)"""
-    import random
+    """Get nearby road hazards from Database"""
+    try:
+        from supabase_traffic_client import get_supabase_traffic_client
+        from math import radians, cos, sin, asin, sqrt
 
-    hazard_types = [
-        "pothole",
-        "debris",
-        "construction",
-        "flooding",
-        "animal_crossing",
-        "poor_visibility",
-    ]
-    hazard_count = random.randint(0, 3)
+        client = get_supabase_traffic_client()
+        
+        # Haversine formula for distance
+        def haversine(lon1, lat1, lon2, lat2):
+            lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1 
+            dlat = lat2 - lat1 
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * asin(sqrt(a)) 
+            r = 6371 # Radius of earth in kilometers
+            return c * r
 
-    hazards = [
-        {
-            "id": f"hazard_{i}",
-            "type": random.choice(hazard_types),
-            "lat": lat + (random.random() - 0.5) * 0.01,
-            "lon": lon + (random.random() - 0.5) * 0.01,
-            "severity": random.choice(["low", "medium", "high"]),
-            "reported_at": (
-                datetime.now() - pd.Timedelta(hours=random.randint(1, 24))
-            ).isoformat(),
+        # Fetch recent events (last 7 days) to keep it relevant
+        # Note: In a production app with PostGIS, we would filter by location in the query.
+        # Here we fetch recent events and filter in Python for simplicity without PostGIS.
+        seven_days_ago = (datetime.now() - pd.Timedelta(days=7)).isoformat()
+        
+        response = (
+            client.supabase.table("traffic_events")
+            .select("*")
+            .gte("event_date", seven_days_ago)
+            .order("event_date", desc=True)
+            .limit(100) # Limit to prevent overloading
+            .execute()
+        )
+        
+        events = response.data if response.data else []
+        
+        hazards = []
+        for event in events:
+            try:
+                event_lat = float(event.get("latitude", 0))
+                event_lon = float(event.get("longitude", 0))
+                
+                dist = haversine(lon, lat, event_lon, event_lat)
+                
+                if dist <= radius:
+                    hazards.append({
+                        "id": str(event.get("event_id", "")),
+                        "type": event.get("event_type", "other"),
+                        "description": event.get("title_en") or event.get("title_th") or "Unknown Event",
+                        "severity": "moderate", # Default
+                        "distance_km": round(dist, 2),
+                        "lat": event_lat,
+                        "lon": event_lon,
+                        "date": event.get("event_date")
+                    })
+            except (ValueError, TypeError):
+                continue
+                
+        return {
+            "hazards": hazards,
+            "count": len(hazards),
+            "source": "Database",
+            "radius": radius
         }
-        for i in range(hazard_count)
-    ]
+        
+    except Exception as e:
+        print(f"❌ Error fetching hazards from DB: {e}")
+        return {
+            "hazards": [],
+            "count": 0,
+            "source": "Error",
+            "error": str(e)
+        }
 
-    return {"hazards": hazards, "count": len(hazards), "radius": radius}
 
+# =============================================================================
+# USER REPORTING ENDPOINTS (Safety Waze)
+# =============================================================================
+
+class ReportRequest(BaseModel):
+    title: str
+    description: str
+    lat: float
+    lon: float
+    category: str  # accident, construction, flooding, pothole, lighting, other
+    reporter_name: Optional[str] = "Anonymous"
+
+# In-memory storage for reports (MVP)
+USER_REPORTS = []
+
+class ReportStatusUpdate(BaseModel):
+    status: str # approved, rejected
+
+@app.post("/reports")
+async def create_report(report: ReportRequest):
+    """Submit a new user report"""
+    new_report = {
+        "id": f"report_{len(USER_REPORTS) + 1}",
+        "title": report.title,
+        "description": report.description,
+        "lat": report.lat,
+        "lon": report.lon,
+        "category": report.category,
+        "severity": 5,  # Default medium severity
+        "pubDate": datetime.now().isoformat(),
+        "source": "User Report",
+        "reporter": report.reporter_name,
+        "upvotes": 0,
+        "status": "pending" # Default status
+    }
+    print(f"📝 New report received: {new_report['title']} (Status: {new_report['status']})")
+    USER_REPORTS.append(new_report)
+    return {"status": "success", "report": new_report}
+
+@app.get("/reports")
+async def get_reports(status: str = "approved"):
+    """Get user reports filtered by status"""
+    print(f"🔍 Fetching reports with status: {status}")
+    print(f"📊 Total reports in memory: {len(USER_REPORTS)}")
+    
+    # Filter out reports older than 24 hours (only for approved reports on map)
+    active_reports = []
+    current_time = datetime.now()
+    
+    for report in USER_REPORTS:
+        # Check status
+        if report.get("status", "approved") != status:
+            continue
+            
+        # For approved reports, check time limit
+        if status == "approved":
+            report_time = datetime.fromisoformat(report["pubDate"])
+            if (current_time - report_time).total_seconds() < 86400:  # 24 hours
+                active_reports.append(report)
+        else:
+            # For pending/rejected, show all (or maybe limit to recent too?)
+            # For now show all pending for admins
+            active_reports.append(report)
+            
+    print(f"✅ Returning {len(active_reports)} reports")
+    return {"reports": active_reports}
+
+@app.put("/reports/{report_id}/status")
+async def update_report_status(report_id: str, status_update: ReportStatusUpdate):
+    """Approve or reject a report"""
+    for report in USER_REPORTS:
+        if report["id"] == report_id:
+            report["status"] = status_update.status
+            return {"status": "success", "report": report}
+            
+    raise HTTPException(status_code=404, detail="Report not found")
 
 # =============================================================================
 # LOAD MODELS - DIRECT SEVERITY PREDICTION MODEL

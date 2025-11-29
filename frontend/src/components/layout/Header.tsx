@@ -6,7 +6,6 @@ import {
   Globe,
   LayoutDashboard,
   Map,
-  History,
   FileText,
   Settings,
   Info,
@@ -15,6 +14,7 @@ import {
   LogIn,
   LogOut,
   User,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -40,6 +40,11 @@ export function Header() {
       icon: Route,
     },
     { href: "/records", label: t("nav.records"), icon: FileText },
+    {
+      href: "/approvals",
+      label: language === "en" ? "Approvals" : "อนุมัติ",
+      icon: ShieldCheck,
+    },
   ];
 
   return (

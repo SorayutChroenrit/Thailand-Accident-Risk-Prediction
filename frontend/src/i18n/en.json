@@ -20,7 +20,6 @@
     "dashboard": "Dashboard",
     "predict": "Predict",
     "liveEvents": "Live Events",
-
     "records": "Records",
     "settings": "Settings",
     "about": "About",
@@ -86,7 +85,11 @@
       "traffic": {
         "title": "Traffic API",
         "source": "TomTom",
-        "items": ["Congestion Levels", "Average Speed", "Road Incidents"]
+        "items": [
+          "Congestion Levels",
+          "Average Speed",
+          "Road Incidents"
+        ]
       },
       "historical": {
         "title": "Historical Data",
@@ -327,5 +330,57 @@
     "designExperience": "Design & Experience",
     "contactUs": "Contact Us",
     "dataSources": "Data Sources"
+  },
+  "approvals": {
+    "title": "Pending Reports",
+    "noPending": "No pending reports",
+    "allHandled": "All reports have been handled",
+    "date": "Date",
+    "time": "Time",
+    "year": "Year",
+    "topic": "Topic",
+    "category": "Category",
+    "details": "Details",
+    "reporter": "Reporter",
+    "manage": "Manage",
+    "approve": "Approve",
+    "reject": "Reject",
+    "navTitle": "Approvals"
+  },
+  "reporting": {
+    "reportRisk": "Report Hazard",
+    "title": "Report Road Hazard",
+    "description": "Help improve road safety by reporting hazards.",
+    "form": {
+      "topic": "Topic",
+      "topicPlaceholder": "e.g., Deep pothole, Broken light",
+      "category": "Category",
+      "details": "Details (Optional)",
+      "detailsPlaceholder": "Additional details...",
+      "reporter": "Reporter Name (Optional)",
+      "reporterPlaceholder": "Your name",
+      "cancel": "Cancel",
+      "submit": "Submit"
+    },
+    "categories": {
+      "accident": "Accident",
+      "construction": "Construction",
+      "flooding": "Flooding",
+      "pothole": "Pothole",
+      "lighting": "Street Light Issue",
+      "traffic_jam": "Traffic Jam",
+      "road_closed": "Road Closed",
+      "animal": "Animal on Road",
+      "breakdown": "Vehicle Breakdown",
+      "traffic_light": "Broken Traffic Light",
+      "fallen_tree": "Fallen Tree",
+      "visibility": "Poor Visibility",
+      "fire": "Fire",
+      "other": "Other"
+    },
+    "success": {
+      "title": "Report Submitted",
+      "message": "Thank you for your report. It will be reviewed before appearing on the map."
+    }
   }
 }

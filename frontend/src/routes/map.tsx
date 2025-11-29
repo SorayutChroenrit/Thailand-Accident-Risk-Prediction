@@ -2,8 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { Header } from "~/components/layout/Header";
 import { Badge } from "~/components/ui/badge";
-import { X, Search, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Search, MapPin, ChevronLeft, ChevronRight, Plus, CheckCircle } from "lucide-react";
+import { ReportDialog } from "~/components/report-dialog";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { ProtectedRoute } from "~/components/ProtectedRoute";
+import { useLanguage } from "~/contexts/LanguageContext";
 import { waitForLongdo } from "~/lib/longdo";
 
 export const Route = createFileRoute("/map")({
@@ -15,13 +18,22 @@ export const Route = createFileRoute("/map")({
 });
 
 // Event types with icons (matching Longdo Traffic + our data)
+// Event types with icons (matching Longdo Traffic + our data)
 const EVENT_CATEGORIES = [
   { id: "accident", label: "อุบัติเหตุ", icon: "⚠️", color: "#dc2626" },
-  { id: "construction", label: "ก่อสร้าง", icon: "🚧", color: "#f59e0b" },
-  { id: "congestion", label: "รถติด", icon: "🚦", color: "#eab308" },
+  { id: "traffic_jam", label: "รถติด", icon: "🚗", color: "#ea580c" },
   { id: "flooding", label: "น้ำท่วม", icon: "🌊", color: "#3b82f6" },
+  { id: "construction", label: "ก่อสร้าง", icon: "🚧", color: "#f59e0b" },
+  { id: "pothole", label: "หลุมบ่อ", icon: "🕳️", color: "#f97316" },
+  { id: "lighting", label: "ไฟทางดับ", icon: "💡", color: "#eab308" },
+  { id: "traffic_light", label: "สัญญาณไฟเสีย", icon: "🚦", color: "#ef4444" },
+  { id: "breakdown", label: "รถเสีย", icon: "🔧", color: "#78716c" },
+  { id: "road_closed", label: "ถนนปิด", icon: "⛔", color: "#991b1b" },
+  { id: "fallen_tree", label: "ต้นไม้ล้ม", icon: "🌳", color: "#15803d" },
+  { id: "animal", label: "สัตว์บนถนน", icon: "🐕", color: "#b45309" },
+  { id: "visibility", label: "ทัศนวิสัยแย่", icon: "🌫️", color: "#6b7280" },
   { id: "fire", label: "เพลิงไหม้", icon: "🔥", color: "#dc2626" },
-  { id: "breakdown", label: "รถเสีย", icon: "🔧", color: "#f97316" },
+  { id: "other", label: "อื่นๆ", icon: "❓", color: "#6b7280" },
 ];
 
 interface TrafficEvent {
@@ -54,10 +66,34 @@ function MapPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [trafficIndex, setTrafficIndex] = useState<number | null>(null);
   const [displayLimit, setDisplayLimit] = useState(20); // Show 20 events initially
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [userReports, setUserReports] = useState<any[]>([]);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const { t } = useLanguage();
 
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
+
+  // ... existing code ...
+
+  const handleReportSubmit = async (data: any) => {
+    try {
+      const response = await fetch("http://localhost:10000/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      
+      if (response.ok) {
+        loadUserReports(); // Refresh markers
+        setShowSuccessAlert(true);
+        setTimeout(() => setShowSuccessAlert(false), 5000); // Hide after 5 seconds
+      }
+    } catch (error) {
+      console.error("Error submitting report:", error);
+    }
+  };
 
   // Load traffic index from Longdo
   useEffect(() => {
@@ -125,9 +161,50 @@ function MapPage() {
     };
   }, []); // Load once on mount - no filters
 
+  // Load user reports
+  const loadUserReports = async () => {
+    try {
+      const response = await fetch("http://localhost:10000/reports");
+      const data = await response.json();
+      setUserReports(data.reports || []);
+      console.log(`✅ Loaded ${data.reports?.length || 0} user reports`);
+    } catch (error) {
+      console.error("Error loading user reports:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadUserReports();
+    const interval = setInterval(loadUserReports, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+
+
   // Filter events (client-side for category and search only)
   useEffect(() => {
-    let filtered = events;
+    // Convert userReports to TrafficEvent format
+    const formattedUserReports: TrafficEvent[] = userReports.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      lat: r.lat,
+      lon: r.lon,
+      category: r.category,
+      severity: r.severity,
+      pubDate: r.pubDate,
+      location: `Lat: ${r.lat.toFixed(4)}, Lon: ${r.lon.toFixed(4)}`,
+      source: "User Report",
+      year: new Date(r.pubDate).getFullYear(),
+    }));
+
+    // Combine database events with user reports
+    // Sort by date (newest first)
+    let allEvents = [...formattedUserReports, ...events].sort(
+      (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
+    );
+
+    let filtered = allEvents;
 
     // Month filtering is now done server-side for better performance
 
@@ -150,7 +227,7 @@ function MapPage() {
     }
 
     setFilteredEvents(filtered);
-  }, [events, selectedCategories, searchQuery]);
+  }, [events, userReports, selectedCategories, searchQuery]);
 
   // Initialize Longdo Map
   useEffect(() => {
@@ -309,18 +386,10 @@ function MapPage() {
               <path d="M16 4 L28 26 L4 26 Z" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
               <path d="M16 12 L16 18 M16 21 L16 23" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
             </svg>`;
-          case "construction":
+          case "traffic_jam":
             return `<svg width="32" height="32" viewBox="0 0 32 32">
               <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              <rect x="10" y="14" width="12" height="8" fill="white" rx="1"/>
-              <rect x="12" y="10" width="8" height="4" fill="white"/>
-            </svg>`;
-          case "congestion":
-            return `<svg width="32" height="32" viewBox="0 0 32 32">
-              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              <circle cx="16" cy="10" r="2.5" fill="#ef4444"/>
-              <circle cx="16" cy="16" r="2.5" fill="#fbbf24"/>
-              <circle cx="16" cy="22" r="2.5" fill="#22c55e"/>
+              <path d="M7 16 L12 16 M20 16 L25 16 M14 12 L18 12 M14 20 L18 20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
             </svg>`;
           case "flooding":
             return `<svg width="32" height="32" viewBox="0 0 32 32">
@@ -328,10 +397,29 @@ function MapPage() {
               <path d="M8 18 Q10 16 12 18 Q14 20 16 18 Q18 16 20 18 Q22 20 24 18" stroke="white" stroke-width="2" fill="none"/>
               <path d="M8 22 Q10 20 12 22 Q14 24 16 22 Q18 20 20 22 Q22 24 24 22" stroke="white" stroke-width="2" fill="none"/>
             </svg>`;
-          case "fire":
+          case "construction":
             return `<svg width="32" height="32" viewBox="0 0 32 32">
               <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              <path d="M16 8 Q18 12 16 16 Q14 12 16 8 M16 16 Q20 18 18 22 Q16 24 14 22 Q12 18 16 16" fill="white"/>
+              <rect x="10" y="14" width="12" height="8" fill="white" rx="1"/>
+              <rect x="12" y="10" width="8" height="4" fill="white"/>
+            </svg>`;
+          case "pothole":
+            return `<svg width="32" height="32" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              <ellipse cx="16" cy="18" rx="8" ry="4" fill="white"/>
+            </svg>`;
+          case "lighting":
+            return `<svg width="32" height="32" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              <circle cx="16" cy="16" r="6" fill="white"/>
+              <path d="M16 6 L16 8 M16 24 L16 26 M6 16 L8 16 M24 16 L26 16" stroke="white" stroke-width="2"/>
+            </svg>`;
+          case "traffic_light":
+            return `<svg width="32" height="32" viewBox="0 0 32 32">
+              <rect x="10" y="6" width="12" height="20" rx="2" fill="${color}" stroke="white" stroke-width="2"/>
+              <circle cx="16" cy="11" r="2" fill="#ef4444"/>
+              <circle cx="16" cy="16" r="2" fill="#fbbf24"/>
+              <circle cx="16" cy="21" r="2" fill="#22c55e"/>
             </svg>`;
           case "breakdown":
             return `<svg width="32" height="32" viewBox="0 0 32 32">
@@ -342,14 +430,28 @@ function MapPage() {
           case "road_closed":
             return `<svg width="32" height="32" viewBox="0 0 32 32">
               <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              <circle cx="16" cy="16" r="10" stroke="white" stroke-width="2.5" fill="none"/>
+              <circle cx="16" cy="16" r="8" stroke="white" stroke-width="2.5" fill="none"/>
               <line x1="10" y1="10" x2="22" y2="22" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
             </svg>`;
-          case "diversion":
+          case "fallen_tree":
             return `<svg width="32" height="32" viewBox="0 0 32 32">
               <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-              <path d="M10 16 L22 16 M18 12 L22 16 L18 20" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M14 12 Q10 12 10 16" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M16 8 L10 24 H22 Z" fill="white"/>
+            </svg>`;
+          case "animal":
+            return `<svg width="32" height="32" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              <circle cx="16" cy="16" r="6" fill="white"/>
+            </svg>`;
+          case "visibility":
+            return `<svg width="32" height="32" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              <path d="M8 14 H24 M10 18 H22 M12 22 H20" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>`;
+          case "fire":
+            return `<svg width="32" height="32" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+              <path d="M16 8 Q18 12 16 16 Q14 12 16 8 M16 16 Q20 18 18 22 Q16 24 14 22 Q12 18 16 16" fill="white"/>
             </svg>`;
           default:
             return `<svg width="32" height="32" viewBox="0 0 32 32">
@@ -382,6 +484,49 @@ function MapPage() {
 
     console.log(`✅ Added ${filteredEvents.length} markers to map`);
   }, [filteredEvents]);
+
+  // Add user report markers
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Add markers for user reports
+    userReports.forEach((report) => {
+      // Check if marker already exists to avoid flickering (optional optimization)
+      
+      const marker = new window.longdo.Marker(
+        { lon: report.lon, lat: report.lat },
+        {
+          title: report.title,
+          icon: {
+            html: `<div
+              style="
+              cursor: pointer;
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+              background: #ec4899;
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: 2px solid white;
+            ">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M12 8v4"/>
+                <path d="M12 16h.01"/>
+              </svg>
+            </div>`,
+            offset: { x: 16, y: 16 },
+          },
+          detail: `${report.description}\n\nแจ้งโดย: ${report.reporter || "Anonymous"}`,
+        }
+      );
+
+      mapRef.current.Overlays.add(marker);
+      // Store reference if needed for cleanup
+    });
+  }, [userReports]);
 
   // Get traffic index color and status
   const getTrafficIndexStatus = (index: number) => {
@@ -778,6 +923,39 @@ function MapPage() {
           )}
         </div>
       </div>
+
+      {/* Report Button (FAB) */}
+      <button
+        onClick={() => setReportDialogOpen(true)}
+        className="absolute bottom-8 right-8 z-50 bg-pink-600 hover:bg-pink-700 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
+      >
+        <Plus className="h-6 w-6" />
+        <span className="font-semibold">{t("reporting.reportRisk")}</span>
+      </button>
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-xl px-4 animate-in fade-in slide-in-from-top-5">
+          <Alert className="bg-green-50 border-green-200 text-green-800 shadow-lg">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800 font-semibold">{t("reporting.success.title")}</AlertTitle>
+            <AlertDescription className="text-green-700">
+              {t("reporting.success.message")}
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      <ReportDialog
+        open={reportDialogOpen}
+        onOpenChange={setReportDialogOpen}
+        onSubmit={handleReportSubmit}
+        currentLocation={
+          mapRef.current
+            ? mapRef.current.location()
+            : { lat: 13.7563, lon: 100.5018 }
+        }
+      />
     </div>
   );
 }

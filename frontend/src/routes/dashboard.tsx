@@ -622,7 +622,7 @@ function DashboardPage() {
             color,
             weight,
           },
-          onEachFeature: (feature, layer) => {
+          onEachFeature: (_feature, layer) => {
             // Tooltip on hover
             layer.bindTooltip(
               `
@@ -1634,7 +1634,7 @@ function DashboardPage() {
                             }}
                             formatter={(
                               value: number,
-                              name: string,
+                              _name: string,
                               props: any,
                             ) => [
                               `${value.toLocaleString()} ${language === "en" ? "cases" : "ราย"}`,
