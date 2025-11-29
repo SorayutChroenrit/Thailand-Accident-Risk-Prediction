@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>SafeRoute Thailand - Accident Risk Prediction</title>
+        <meta
+            name="description"
+            content="Predict accident risk areas in Thailand with AI-powered analysis of weather, traffic, and historical data."
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <!-- Longdo Map API - Load synchronously to prevent timing issues -->
+        <script
+            src="https://api.longdo.com/map/?key=370a1776e0879ff8bb99731798210fd7"
+            onload="console.log('Longdo Map script loaded')"
+            onerror="console.error('Failed to load Longdo Map script')"
+        ></script>
+        <!-- GISTDA Sphere Map API -->
+        <script
+            src="https://api.sphere.gistda.or.th/map/?key=7567523F6CB64B498F24398D01F2A4FD"
+            onload="console.log('GISTDA Sphere Map script loaded')"
+            onerror="console.error('Failed to load GISTDA Sphere Map script')"
+        ></script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>
