@@ -29,7 +29,6 @@ import {
   Car,
   Cloud,
   Clock,
-  Calendar,
   BarChart3,
   RefreshCw,
   Filter,
@@ -47,15 +46,11 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   AreaChart,
   Area,
 } from "recharts";
 import {
   provinceAccidentData,
-  generateProvinceDetailedData,
-  generateThailandSummary,
   getProvinceColor,
   getTopProvinces,
 } from "~/lib/dashboard-data";
@@ -257,6 +252,7 @@ function DashboardPage() {
             yearly_summary: [],
             monthly_summary: [],
             weekday_summary: [],
+            vehicle_by_hour: [],
           });
         }
         setLoading(false);
@@ -284,6 +280,7 @@ function DashboardPage() {
           yearly_summary: [],
           monthly_summary: [],
           weekday_summary: [],
+          vehicle_by_hour: [],
         });
         setLoading(false);
       }
@@ -357,11 +354,14 @@ function DashboardPage() {
     });
 
     // Re-aggregate filtered data
-    const vehicleCount = {};
-    const weatherCount = {};
-    const causeCount = {};
-    const accidentTypeCount = {};
-    const provinceCount = {};
+    const vehicleCount: Record<string, number> = {};
+    const weatherCount: Record<string, number> = {};
+    const causeCount: Record<string, number> = {};
+    const accidentTypeCount: Record<string, number> = {};
+    const provinceCount: Record<
+      string,
+      { count: number; fatal: number; serious: number; minor: number }
+    > = {};
     let totalFatal = 0;
     let totalSerious = 0;
     let totalMinor = 0;
@@ -770,8 +770,6 @@ function DashboardPage() {
     vehicleData = [],
     accidentCausesData = [],
     hourlyData = [],
-    monthlyData = [],
-    yearlyData = [],
     severityData = [],
   } = dashboardData;
 

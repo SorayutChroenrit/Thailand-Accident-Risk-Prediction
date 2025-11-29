@@ -43,6 +43,7 @@ export interface DashboardStats {
     weather_condition: string;
     presumed_cause: string;
     accident_type: string;
+    province?: string;
     casualties_fatal: number;
     casualties_serious: number;
     casualties_minor: number;
