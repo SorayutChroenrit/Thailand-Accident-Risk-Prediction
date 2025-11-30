@@ -25,6 +25,7 @@ export interface MLPredictionRequest {
 
 export interface MLPredictionResponse {
   prediction: string; // บาดเจ็บเล็กน้อย, บาดเจ็บสาหัส, เสียชีวิต
+  severity?: string; // Same as prediction, for compatibility
   probabilities: Record<string, number>;
   risk_score: number; // 0-100
   risk_level: "low" | "medium" | "high" | "very_high";

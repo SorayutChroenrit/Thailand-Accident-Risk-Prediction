@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import {
-  MapPin,
   Menu,
   X,
   Globe,
@@ -20,6 +19,7 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useLanguage } from "~/contexts/LanguageContext";
 import { useAuth } from "~/contexts/AuthContext";
+import { Logo } from "~/components/ui/Logo";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -51,13 +51,8 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <MapPin className="h-5 w-5 text-white" />
-          </div>
-          <div className="hidden sm:block">
-            <span className="text-lg font-bold">{t("common.appName")}</span>
-          </div>
+        <Link to="/" className="hover:opacity-90 transition-opacity">
+          <Logo />
         </Link>
 
         {/* Desktop Navigation */}

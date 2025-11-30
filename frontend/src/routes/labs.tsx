@@ -17,10 +17,8 @@ import {
   CloudRain,
   Car,
   Calendar,
-  MapPin,
   RefreshCw,
   Loader2,
-  AlertTriangle,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -28,7 +26,6 @@ import { useLanguage } from "~/contexts/LanguageContext";
 import { ProtectedRoute } from "~/components/ProtectedRoute";
 import { waitForLongdo } from "~/lib/longdo";
 import {
-  scanAreaForMLRiskZones,
   MLRiskZone,
   getRiskZoneIcon,
   getRiskZoneColor,
@@ -54,7 +51,6 @@ function TestRiskMapPage() {
   const [mapLoading, setMapLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [zones, setZones] = useState<MLRiskZone[]>([]);
-  const [selectedZone, setSelectedZone] = useState<MLRiskZone | null>(null);
   const [showOnlyHighRisk, setShowOnlyHighRisk] = useState(false);
 
   // Test parameters
@@ -65,16 +61,8 @@ function TestRiskMapPage() {
   const [trafficDensity, setTrafficDensity] = useState([0.5]);
 
   // Map center - Thailand center
-  const [centerLat, setCenterLat] = useState(13.7563);
-  const [centerLng, setCenterLng] = useState(100.5018);
-
-  // Thailand boundaries
-  const THAILAND_BOUNDS = {
-    north: 20.5,
-    south: 5.6,
-    east: 105.6,
-    west: 97.3,
-  };
+  const centerLat = 13.7563;
+  const centerLng = 100.5018;
 
   // Initialize map
   useEffect(() => {
@@ -413,12 +401,12 @@ function TestRiskMapPage() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <Zap className="h-5 w-5" />
                 {language === "en"
-                  ? "Risk Map - Thailand"
+                  ? "Risk Map"
                   : "แผนที่ความเสี่ยง - ประเทศไทย"}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
                 {language === "en"
-                  ? "Adjust parameters to predict accident risk zones across Thailand using ML"
+                  ? "Adjust parameters to predict accident risk zones using ML"
                   : "ปรับค่าต่างๆ เพื่อทำนายจุดเสี่ยงอุบัติเหตุทั่วประเทศไทยด้วย ML"}
               </p>
             </CardHeader>
@@ -632,7 +620,7 @@ function TestRiskMapPage() {
                 {scanning ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {language === "en" ? "Scanning Thailand..." : "กำลังสแกนประเทศไทย..."}
+                    {language === "en" ? "Scanning..." : "กำลังสแกน..."}
                   </>
                 ) : (
                   <>
@@ -737,7 +725,6 @@ function TestRiskMapPage() {
                           key={zone.id}
                           className={`flex items-center gap-2 p-2.5 rounded-lg border-2 hover:shadow-lg cursor-pointer transition-all ${riskBg}`}
                           onClick={() => {
-                            setSelectedZone(zone);
                             if (mapRef.current) {
                               mapRef.current.location(
                                 {

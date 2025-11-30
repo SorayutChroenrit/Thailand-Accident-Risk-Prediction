@@ -19,8 +19,6 @@ import {
   Clock,
   Route as RouteIcon,
   Loader2,
-  CheckCircle,
-  ArrowRight,
   Car,
   Zap,
   Undo2,
@@ -31,8 +29,6 @@ import {
   CloudLightning,
   CloudSnow,
   CloudFog,
-  Coffee,
-  Fuel,
   Share2,
   ChevronDown,
   ChevronUp,
@@ -47,6 +43,7 @@ import { predictAccidentRisk } from "~/lib/ml-prediction-api";
 import {
   getRoutePredictionData,
   getSafetyRecommendations,
+  calculateRealRoutes,
   type VehicleData,
 } from "~/lib/route-prediction-api";
 
@@ -57,228 +54,6 @@ export const Route = createFileRoute("/route-analysis")({
     </ProtectedRoute>
   ),
 });
-
-// Calculate distance
-const calculateDistance = (
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-) => {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-// Generate time segments with risk
-const generateTimeSegments = (
-  departureTime: string,
-  duration: number,
-  baseRisk: number,
-) => {
-  const segments = [];
-  const [hours, minutes] = departureTime.split(":").map(Number);
-  let currentMinutes = hours * 60 + minutes;
-  let remainingDuration = duration;
-
-  // Determine segment size based on total duration
-  let segmentSize: number;
-  if (duration < 30) {
-    // Very short trip: single segment
-    segmentSize = duration;
-  } else if (duration <= 60) {
-    // Short trip (30-60 min): 15-20 minute segments
-    segmentSize = 15;
-  } else if (duration <= 180) {
-    // Medium trip (1-3 hours): 30 minute segments
-    segmentSize = 30;
-  } else {
-    // Long trip (> 3 hours): 60 minute segments
-    segmentSize = 60;
-  }
-
-  while (remainingDuration > 0) {
-    const currentSegmentDuration = Math.min(segmentSize, remainingDuration);
-    const startHour = Math.floor(currentMinutes / 60) % 24;
-    const startMin = currentMinutes % 60;
-    const endMinutes = currentMinutes + currentSegmentDuration;
-    const endHour = Math.floor(endMinutes / 60) % 24;
-    const endMin = endMinutes % 60;
-
-    // Calculate risk based on time of day
-    let timeRisk = baseRisk;
-    if (startHour >= 7 && startHour <= 9) timeRisk += 15; // Morning rush
-    if (startHour >= 17 && startHour <= 19) timeRisk += 20; // Evening rush
-    if (startHour >= 22 || startHour <= 5) timeRisk += 10; // Night driving
-    if (startHour >= 10 && startHour <= 12) timeRisk += 5; // Late morning
-
-    timeRisk = Math.min(95, Math.max(10, timeRisk + (Math.random() * 10 - 5)));
-
-    segments.push({
-      startTime: `${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`,
-      endTime: `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`,
-      risk: Math.round(timeRisk),
-      duration: currentSegmentDuration,
-    });
-
-    currentMinutes = endMinutes;
-    remainingDuration -= currentSegmentDuration;
-  }
-
-  return segments;
-};
-
-// Calculate real routes using Longdo routing API
-const calculateRealRoutes = async (
-  fromLat: number,
-  fromLng: number,
-  toLat: number,
-  toLng: number,
-  departureTime: Date,
-  predictionData: any,
-) => {
-  const LONGDO_KEY = "370a1776e0879ff8bb99731798210fd7";
-
-  // Define route types to request from Longdo
-  const routeTypes = [
-    {
-      mode: "t",
-      name_en: "Recommended Route",
-      name_th: "เส้นทางแนะนำ",
-      baseRisk: 40,
-    },
-    {
-      mode: "d",
-      name_en: "Shortest Distance",
-      name_th: "ระยะทางสั้นที่สุด",
-      baseRisk: 35,
-    },
-    {
-      mode: "s",
-      name_en: "Safest Route",
-      name_th: "เส้นทางปลอดภัย",
-      baseRisk: 25,
-    },
-  ];
-
-  console.log("🛣️ Fetching real routes from Longdo API...");
-
-  // Fetch all routes in parallel
-  const routePromises = routeTypes.map(async (routeType, index) => {
-    try {
-      const url = `https://api.longdo.com/RouteService/json/route/guide?flon=${fromLng}&flat=${fromLat}&tlon=${toLng}&tlat=${toLat}&mode=${routeType.mode}&key=${LONGDO_KEY}`;
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data && data.data && data.data.length > 0) {
-        const routeData = data.data[0];
-        const distance = routeData.distance / 1000; // Convert meters to km
-        const duration = Math.round(routeData.interval / 60); // Convert seconds to minutes
-
-        console.log(
-          `  ✅ ${routeType.name_en}: ${distance.toFixed(1)}km, ${duration}min`,
-        );
-
-        return {
-          id: index + 1,
-          mode: routeType.mode, // Store mode for map rendering
-          name_en: routeType.name_en,
-          name_th: routeType.name_th,
-          distance: distance,
-          duration: duration,
-          baseRisk: routeType.baseRisk,
-          tollCost: Math.round(distance * 3), // Estimate
-          fuelCost: Math.round(distance * 3.5), // Estimate
-          guide: routeData.guide, // Return guide points for geometry
-        };
-      } else {
-        throw new Error("No route data returned");
-      }
-    } catch (error) {
-      console.error(`  ❌ Error fetching ${routeType.name_en}:`, error);
-      // Fallback to distance calculation
-      const directDistance = calculateDistance(fromLat, fromLng, toLat, toLng);
-      return {
-        id: index + 1,
-        mode: routeType.mode, // Store mode even for fallback
-        name_en: routeType.name_en,
-        name_th: routeType.name_th,
-        distance: directDistance * (1 + index * 0.05),
-        duration: Math.round((directDistance / (70 - index * 10)) * 60),
-        baseRisk: routeType.baseRisk,
-        tollCost: Math.round(directDistance * 3),
-        fuelCost: Math.round(directDistance * 3.5),
-      };
-    }
-  });
-
-  const routes = await Promise.all(routePromises);
-
-  // Adjust risk based on real prediction data
-  const weatherRisk = predictionData.rainfall > 0 ? 15 : 0;
-  const trafficRisk =
-    predictionData.traffic_density > 0.7
-      ? 20
-      : predictionData.traffic_density > 0.5
-        ? 10
-        : 0;
-  const timeRisk = predictionData.is_rush_hour ? 15 : 0;
-
-  // Use ML risk score if available
-  const mlRiskScore = predictionData.mlRouteRisk?.route_risk_score;
-  
-  console.log(
-    `⚠️ Risk adjustments: Weather +${weatherRisk}%, Traffic +${trafficRisk}%, Time +${timeRisk}%, ML Risk: ${mlRiskScore || 'N/A'}`,
-  );
-
-  return routes
-    .map((route) => {
-      // If ML risk is available, use it as the primary driver, but adjust slightly for route type
-      // Recommended/Fastest might have slightly higher risk than Safest
-      let adjustedBaseRisk;
-      
-      if (mlRiskScore !== undefined) {
-        // ML gives overall risk. We adjust it based on route type relative to "Recommended"
-        // Safest route should be lower than ML average, Shortest might be higher
-        const routeTypeAdjustment = route.baseRisk - 40; // 40 is base for Recommended
-        adjustedBaseRisk = Math.max(10, Math.min(95, mlRiskScore + routeTypeAdjustment));
-      } else {
-        // Fallback to heuristic calculation
-        adjustedBaseRisk = route.baseRisk + weatherRisk + trafficRisk + timeRisk;
-      }
-      const departureTimeStr = `${String(departureTime.getHours()).padStart(2, "0")}:${String(departureTime.getMinutes()).padStart(2, "0")}`;
-
-      const segments = generateTimeSegments(
-        departureTimeStr,
-        route.duration,
-        adjustedBaseRisk,
-      );
-      const overallRisk = Math.round(
-        segments.reduce((sum, s) => sum + s.risk, 0) / segments.length,
-      );
-
-      return {
-        ...route,
-        segments,
-        overallRisk,
-        recommended: false,
-      };
-    })
-    .map((route, _, arr) => ({
-      ...route,
-      recommended:
-        route.overallRisk === Math.min(...arr.map((r) => r.overallRisk)),
-    }));
-};
-
 
 // Location type for search results
 interface SearchLocation {
@@ -311,19 +86,15 @@ function RouteAnalysisPage() {
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
-  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
+  const [expandedRoute, setExpandedRoute] = useState<string | number | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | number | null>(null);
   const [analysisResult, setAnalysisResult] = useState<{
     routes: any[];
     weather: any[];
     tips: any[];
   } | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
   const [showAllEvents, setShowAllEvents] = useState(false);
-  const [navigationGuide, setNavigationGuide] = useState<any[]>([]);
   const [routeEvents, setRouteEvents] = useState<any[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
-  const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
 
   // Vehicle data for ML prediction
   const [vehicleType, setVehicleType] = useState<
@@ -332,7 +103,6 @@ function RouteAnalysisPage() {
 
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const gistdaMapRef = useRef<any>(null);
   const fromSearchTimeout = useRef<NodeJS.Timeout | null>(null);
   const toSearchTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -456,12 +226,11 @@ function RouteAnalysisPage() {
     toLng: number,
     routeGeometry: any[] = []
   ) => {
-    setLoadingEvents(true);
     try {
-      // Get events from last 1 month
+      // Get events from last 1.5 months (45 days)
       const endDate = new Date();
       const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - 1);
+      startDate.setDate(startDate.getDate() - 45);
 
       const params = new URLSearchParams({
         start_date: startDate.toISOString().split("T")[0],
@@ -469,10 +238,12 @@ function RouteAnalysisPage() {
         limit: "500",
       });
 
+      console.log(`🔍 Fetching events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
       const response = await fetch(
         `http://localhost:10000/events/database?${params}`,
       );
       const data = await response.json();
+      console.log(`📥 API returned ${data.events?.length || 0} events`);
 
       // Filter events that are near the route
       const events = (data.events || []).filter((event: any) => {
@@ -482,13 +253,14 @@ function RouteAnalysisPage() {
         const minLng = Math.min(fromLng, toLng) - 0.05;
         const maxLng = Math.max(fromLng, toLng) + 0.05;
 
-        if (
-          event.lat < minLat ||
-          event.lat > maxLat ||
-          event.lon < minLng ||
-          event.lon > maxLng
-        ) {
-          return false;
+        const inBounds = 
+          event.lat >= minLat &&
+          event.lat <= maxLat &&
+          event.lon >= minLng &&
+          event.lon <= maxLng;
+
+        if (!inBounds) {
+           return false;
         }
 
         // 2. Distance from route geometry check (finer filter)
@@ -496,13 +268,14 @@ function RouteAnalysisPage() {
           // Check distance from any segment of the route polyline
           let minDistance = Infinity;
           
+          if (routeGeometry.length > 0) {
+             console.log("🛣️ Route Geometry Sample:", routeGeometry[0]);
+          }
+
           for (let i = 0; i < routeGeometry.length - 1; i++) {
             const p1 = routeGeometry[i];
             const p2 = routeGeometry[i + 1];
             
-            // Longdo guide points have lat/lon properties
-            // Note: Longdo API might return them as 'lat', 'lon' or 'lat', 'long' depending on version
-            // We assume standard lat/lon here based on typical Longdo response
             const p1Lat = p1.lat || p1.latitude;
             const p1Lng = p1.lon || p1.long || p1.longitude;
             const p2Lat = p2.lat || p2.latitude;
@@ -514,14 +287,14 @@ function RouteAnalysisPage() {
             }
           }
           
-          // 0.005 degrees is roughly 500 meters. 
-          // We use a tighter threshold for actual route geometry.
-          return minDistance < 0.005;
+          console.log(`📏 Event ${event.id} distance: ${minDistance.toFixed(4)} (Threshold: 0.01)`);
+          return minDistance < 0.01;
         }
-
-        // Fallback: Distance from direct line check if no geometry
+        
+        // Fallback
         const dist = distanceFromLine(event.lat, event.lon, fromLat, fromLng, toLat, toLng);
-        return dist < 0.05;
+        console.log(`📏 Event ${event.id} fallback distance: ${dist.toFixed(4)}`);
+        return dist < 0.01;
       });
 
       // Use ML to predict severity for each accident point
@@ -564,7 +337,6 @@ function RouteAnalysisPage() {
       setRouteEvents([]);
       return [];
     } finally {
-      setLoadingEvents(false);
     }
   };
 
@@ -643,7 +415,7 @@ function RouteAnalysisPage() {
       );
 
       // 4. Load events along the route using the geometry of the recommended route
-      const recommendedRoute = routes.find((r) => r.recommended) || routes[0];
+      const recommendedRoute = routes.find((r: any) => r.recommended) || routes[0];
       const routeGeometry = recommendedRoute?.guide || [];
       
       const events = await loadRouteEvents(
@@ -677,7 +449,7 @@ function RouteAnalysisPage() {
         });
       }
 
-      if (weather.some((w) => w.condition === "rain")) {
+      if (weather.some((w: any) => w.condition === "rain")) {
         tips.push({
           icon: <CloudRain className="h-4 w-4" />,
           text_en: "Rain expected - drive carefully and reduce speed",
@@ -701,7 +473,7 @@ function RouteAnalysisPage() {
       });
 
       setAnalysisResult({ routes, weather, tips });
-      const recommendedId = routes.find((r) => r.recommended)?.id || null;
+      const recommendedId = routes.find((r: any) => r.recommended)?.id || null;
       setExpandedRoute(recommendedId);
       setSelectedRouteId(recommendedId);
     } catch (error) {
@@ -762,8 +534,8 @@ function RouteAnalysisPage() {
         try {
           const fromMarker = new (window as any).longdo.Marker(
             {
-              lon: parseFloat(fromLocation.lng),
-              lat: parseFloat(fromLocation.lat),
+              lon: Number(fromLocation.lng),
+              lat: Number(fromLocation.lat),
             },
             {
               title: language === "en" ? "Origin" : "ต้นทาง",
@@ -789,8 +561,8 @@ function RouteAnalysisPage() {
         try {
           const toMarker = new (window as any).longdo.Marker(
             {
-              lon: parseFloat(toLocation.lng),
-              lat: parseFloat(toLocation.lat),
+              lon: Number(toLocation.lng),
+              lat: Number(toLocation.lat),
             },
             {
               title: language === "en" ? "Destination" : "ปลายทาง",
@@ -920,14 +692,14 @@ function RouteAnalysisPage() {
           
           map.Route.mode(routeMode);
 
-          // Add origin and destination with parseFloat to ensure numbers
+          // Add origin and destination with Number to ensure numbers
           map.Route.add({
-            lon: parseFloat(fromLocation.lng),
-            lat: parseFloat(fromLocation.lat),
+            lon: Number(fromLocation.lng),
+            lat: Number(fromLocation.lat),
           });
           map.Route.add({
-            lon: parseFloat(toLocation.lng),
-            lat: parseFloat(toLocation.lat),
+            lon: Number(toLocation.lng),
+            lat: Number(toLocation.lat),
           });
 
           // Search and draw route (will follow actual roads)
@@ -1559,11 +1331,10 @@ function RouteAnalysisPage() {
                                     <p className="text-sm font-medium text-gray-900 truncate flex-1">
                                       {event.title}
                                     </p>
-                                    {event.predicted_severity && event.predicted_severity.toLowerCase() !== 'unknown' && (
+                                    {event.predicted_severity && ["fatal", "serious", "minor"].includes(event.predicted_severity.toLowerCase()) && (
                                       <span
                                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSeverityColor(event.predicted_severity)}`}
                                       >
-                                        🤖{" "}
                                         {language === "en"
                                           ? getSeverityLabel(
                                               event.predicted_severity,

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Header } from "~/components/layout/Header";
 import { Footer } from "~/components/layout/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -12,7 +12,6 @@ import {
   Navigation,
   Clock,
   Route as RouteIcon,
-  Eye,
   Skull,
   Loader2,
   Car,
@@ -30,7 +29,6 @@ import { waitForLongdo } from "~/lib/longdo";
 import { predictAccidentRisk, checkMLApiHealth } from "~/lib/ml-prediction-api";
 import {
   PredictSkeleton,
-  PredictMapSkeleton,
 } from "~/components/PredictSkeleton";
 
 export const Route = createFileRoute("/predict")({
@@ -68,9 +66,7 @@ function PredictPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [mlApiAvailable, setMlApiAvailable] = useState<boolean>(false);
   const [mlPrediction, setMlPrediction] = useState<any>(null);
-  const [predictionLoading, setPredictionLoading] = useState<boolean>(false);
   const [nearbyEvents, setNearbyEvents] = useState<any[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState<boolean>(false);
   const [mapReady, setMapReady] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -86,9 +82,8 @@ function PredictPage() {
   const findNearbyEvents = async (
     lat: number,
     lng: number,
-    radiusMeters: number = 10000,
+    radiusMeters: number = 5000,
   ) => {
-    setLoadingEvents(true);
     try {
       console.log(
         `🔍 Searching for events within ${radiusMeters}m of [${lat}, ${lng}]`,
@@ -147,8 +142,6 @@ function PredictPage() {
       console.error("Error loading nearby events:", error);
       setNearbyEvents([]);
       return [];
-    } finally {
-      setLoadingEvents(false);
     }
   };
 
@@ -163,13 +156,11 @@ function PredictPage() {
       setLocationStatus("error");
       return;
     }
-
-    setPredictionLoading(true);
     try {
       console.log("🔮 Collecting comprehensive data for ML prediction...");
 
-      // 1. Find nearby events within 10km
-      const events = await findNearbyEvents(lat, lng, 10000);
+      // 1. Find nearby events within 5km
+      const events = await findNearbyEvents(lat, lng, 5000);
 
       // 2. Get real weather data
       const { getWeatherForecast } = await import(
@@ -262,8 +253,6 @@ function PredictPage() {
       setRiskScore(0);
       setMlPrediction(null);
       // Don't set error status - keep success so map shows
-    } finally {
-      setPredictionLoading(false);
     }
   };
 
@@ -381,24 +370,24 @@ function PredictPage() {
         map.Overlays.add(userMarker);
         console.log("✅ User marker added");
 
-        // 10km radius circle - ENHANCED for maximum visibility
-        console.log("🔵 Adding 10km radius circle... (v3)");
+        // 5km radius circle - ENHANCED for maximum visibility
+        console.log("🔵 Adding 5km radius circle... (v3)");
         try {
           // Create circle with standard hex colors
           const radiusCircle = new window.longdo.Circle(
             { lon: userLocation.lng, lat: userLocation.lat },
-            0.09, // ~10km in degrees (approx 111km per degree) - Longdo Circle often uses degrees
+            0.045, // ~5km in degrees (approx 111km per degree)
             {
               lineWidth: 2,
               lineColor: "rgba(0, 0, 255, 0.6)",
               fillColor: "rgba(0, 0, 255, 0.15)",
-              detail: "10km Radius",
+              detail: "5km Radius",
               visible: true
             }
           );
           
           map.Overlays.add(radiusCircle);
-          console.log("✅ 10km circle added (v3 - degrees)");
+          console.log("✅ 5km circle added (v3 - degrees)");
         } catch (circleError) {
           console.error("❌ Error adding circle:", circleError);
         }
@@ -1025,7 +1014,7 @@ function PredictPage() {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <p className="text-xs text-gray-600">
-                                    {language === "en" ? "Historical Events (10km)" : "เหตุการณ์ในอดีต (10 กม.)"}
+                                    {language === "en" ? "Accidents within 5 km" : "อุบัติเหตุในระยะ 5 กม."}
                                   </p>
                                   <p className="font-bold text-2xl text-gray-900">{nearbyEvents.length}</p>
                                 </div>

@@ -47,6 +47,8 @@ export interface DashboardStats {
     casualties_fatal: number;
     casualties_serious: number;
     casualties_minor: number;
+    hour?: number;
+    day_of_week?: number;
   }>;
   monthly_trend: Array<{
     month: string;
@@ -102,7 +104,9 @@ export async function fetchDashboardStats(
     accident_cause: accidentCause,
   });
 
-  const response = await fetch(`${API_BASE_URL}/dashboard/stats?${params}`);
+  const response = await fetch(`${API_BASE_URL}/dashboard/stats?${params}`, {
+    cache: 'default'
+  });
 
   if (!response.ok) {
     throw new Error("Failed to fetch dashboard statistics");

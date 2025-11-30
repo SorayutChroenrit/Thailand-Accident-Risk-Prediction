@@ -5,23 +5,23 @@ def inspect_data():
     try:
         client = get_supabase_traffic_client()
         
-        # Search for events with "Cr." in description
-        response = client.client.table("traffic_events").select("*").ilike("description_th", "%Cr.%").limit(5).execute()
+        # Get specific event to check coordinates
+        response = client.client.table("traffic_events").select("*").eq("id", 1052379).execute()
         
         if response.data:
             print(f"✅ Fetched {len(response.data)} events.")
-            for i, event in enumerate(response.data):
-                print(f"\n--- Event {i+1} ---")
+            for event in response.data:
+                print(f"--- Event {event.get('id')} ---")
                 print(f"ID: {event.get('id')}")
-                print(f"Source: {event.get('source')}")
-                print(f"Title (TH): {event.get('title_th')}")
-                print(f"Description (EN): {event.get('description_en')}")
-                print(f"Description (TH): {event.get('description_th')}")
-                print(f"Source URL: {event.get('source_url')}")
+                print(f"Lat: {event.get('latitude')}")
+                print(f"Lon: {event.get('longitude')}")
+                print(f"Event Date: {event.get('event_date')}")
+                print(f"Title: {event.get('title_th')}")
         else:
-            print("⚠️ No data found in traffic_events.")
+            print("❌ No events found.")
             
     except Exception as e:
+        print(f"Error: {e}")
         print(f"❌ Error: {e}")
 
 if __name__ == "__main__":

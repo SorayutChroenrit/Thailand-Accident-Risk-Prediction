@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Globe, Moon, Sun, Bell, Map, Database, Save } from "lucide-react";
+import { Globe, Moon, Sun, Map, Save } from "lucide-react";
 import { useLanguage } from "~/contexts/LanguageContext";
 
 export const Route = createFileRoute("/settings")({

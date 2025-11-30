@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "SafeRoute Thailand",
+    "appName": "SafeRoute",
     "tagline": "AI-Powered Accident Risk Prediction",
     "language": "Language",
     "english": "English",
@@ -84,7 +84,7 @@
       },
       "traffic": {
         "title": "Traffic API",
-        "source": "TomTom",
+        "source": "Longdo Map",
         "items": [
           "Congestion Levels",
           "Average Speed",
@@ -313,7 +313,7 @@
     "weatherIntegration": "Weather Integration",
     "weatherIntegrationDesc": "Real-time weather data from OpenWeatherMap API",
     "trafficAnalysis": "Traffic Analysis",
-    "trafficAnalysisDesc": "Live traffic conditions from TomTom Traffic API",
+    "trafficAnalysisDesc": "Live traffic conditions from Longdo Map Traffic API",
     "historicalData": "Historical Data",
     "historicalDataDesc": "Comprehensive database of past accidents in Thailand",
     "severityLevels": "Severity Levels",

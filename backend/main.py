@@ -8,7 +8,7 @@ ADDED: Accident cause filter
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import joblib
@@ -96,32 +96,7 @@ async def get_traffic_density(lat: float, lon: float):
     }
 
 
-@app.get("/traffic/index")
-async def get_traffic_index():
-    """Get traffic index from Longdo API"""
-    data = fetch_longdo_data("/sys/index")
-    
-    if data and "index" in data:
-        index = float(data["index"])
-        return {
-            "current": round(index, 1),
-            "status": "clear"
-            if index < 3
-            else "moderate"
-            if index < 5
-            else "busy"
-            if index < 7
-            else "congested",
-            "timestamp": datetime.now().isoformat(),
-            "source": "Longdo API"
-        }
-    
-    return {
-        "current": 0.0,
-        "status": "unknown",
-        "timestamp": datetime.now().isoformat(),
-        "source": "Fallback"
-    }
+
 
 
 @app.get("/road/condition")
@@ -236,7 +211,8 @@ async def create_report(report: ReportRequest):
         import uuid
         client = get_supabase_traffic_client()
         
-        now = datetime.now()
+        # Use Bangkok Time (UTC+7)
+        now = datetime.utcnow() + timedelta(hours=7)
         
         # Map to traffic_events schema
         new_event = {
@@ -1097,7 +1073,7 @@ async def predict_accident_risk(request: PredictionRequest):
 
     except Exception as e:
         import traceback
-
+        print(f"❌ Error in predict_accident_risk: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
@@ -1187,6 +1163,9 @@ async def predict_route_risk(
         }
 
     except Exception as e:
+        import traceback
+        print(f"❌ Error in predict_route_risk: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Route prediction error: {str(e)}")
 
 
@@ -1484,24 +1463,66 @@ async def get_itic_cameras():
 
 
 @app.get("/traffic/index")
-async def get_traffic_index_data(year: Optional[int] = None, historical: bool = False):
+async def get_traffic_index_data(
+    year: Optional[int] = None, 
+    historical: bool = False,
+    current_only: bool = True
+):
     """
     Fetch traffic index from Longdo Traffic
-    Returns CSV data parsed into JSON format
-
+    
     Parameters:
-    - year: Specific year (default: current year)
-    - historical: If True, fetch multiple years of data
+    - current_only: If True (default), fetch only current index from JSON API (fast)
+    - year: Specific year (default: current year) - used when current_only=False
+    - historical: If True, fetch multiple years of data - used when current_only=False
     """
     try:
-        import csv
         from datetime import datetime
+        
+        # Fast path: Just get current index from JSON API
+        if current_only and not historical:
+            print(f"📊 Fetching current traffic index from Longdo JSON API...")
+            try:
+                response = requests.get(
+                    "https://traffic.longdo.com/api/json/traffic/index",
+                    timeout=5,
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    index = float(data.get("index", 0))
+                    
+                    # Determine status based on index
+                    if index < 3:
+                        status = "clear"
+                    elif index < 5:
+                        status = "moderate"
+                    elif index < 7:
+                        status = "busy"
+                    else:
+                        status = "congested"
+                    
+                    print(f"✅ Current traffic index: {index:.1f} ({status})")
+                    
+                    return {
+                        "current": round(index, 1),
+                        "status": status,
+                        "timestamp": datetime.now().isoformat(),
+                        "source": "Longdo API"
+                    }
+                else:
+                    print(f"⚠️ Longdo JSON API returned status {response.status_code}")
+            except Exception as e:
+                print(f"❌ Error fetching from JSON API: {e}")
+        
+        # Historical path: Fetch CSV data for detailed analysis
+        import csv
         from io import StringIO
 
         if year is None:
             year = datetime.now().year
 
-        print(f"📊 Fetching traffic index from Longdo for year {year}...")
+        print(f"📊 Fetching traffic index CSV data from Longdo for year {year}...")
 
         all_data = []
         years_to_fetch = []
@@ -1575,6 +1596,8 @@ async def get_traffic_index_data(year: Optional[int] = None, historical: bool = 
 
     except Exception as e:
         print(f"❌ Error fetching traffic index: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "current": 0,
             "average_24h": 0,
@@ -2331,7 +2354,6 @@ async def get_dashboard_stats(
                     [p for p in province_counts.values() if p > 100]
                 ),
             },
-            # Add raw event details for frontend filtering
             "all_events": [
                 {
                     "vehicle_1": e.get("vehicle_1", ""),
@@ -2342,6 +2364,24 @@ async def get_dashboard_stats(
                     "casualties_fatal": e.get("casualties_fatal", 0),
                     "casualties_serious": e.get("casualties_serious", 0),
                     "casualties_minor": e.get("casualties_minor", 0),
+                    "hour": (
+                        datetime.fromisoformat(
+                            e.get("accident_datetime", "").replace("Z", "+00:00")
+                        ).hour
+                        if e.get("accident_datetime")
+                        else None
+                    ),
+                    "day_of_week": (
+                        (
+                            datetime.fromisoformat(
+                                e.get("accident_datetime", "").replace("Z", "+00:00")
+                            ).weekday()
+                            + 1
+                        )
+                        % 7
+                        if e.get("accident_datetime")
+                        else None
+                    ),
                 }
                 for e in all_events
             ],

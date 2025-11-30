@@ -31,6 +31,7 @@ class SupabaseTrafficClient:
             )
 
         self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        self.supabase = self.client # Alias for compatibility
         self._cache: Dict[str, tuple[datetime, List[Dict]]] = {}
         self._cache_ttl = 300  # 5 minutes cache TTL
         print("✅ Supabase Traffic client initialized with caching")

@@ -98,17 +98,7 @@ export function Footer() {
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </li>
-              <li>
-                <a
-                  href="https://developer.tomtom.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-                >
-                  Traffic API
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </li>
+
             </ul>
           </div>
 

@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+
+import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Header } from "~/components/layout/Header";
 import { Footer } from "~/components/layout/Footer";
@@ -13,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Select,
@@ -34,6 +36,9 @@ import {
   Filter,
   Undo2,
   Heart,
+  Calendar,
+  X,
+  ArrowLeft,
 } from "lucide-react";
 import {
   BarChart,
@@ -48,6 +53,7 @@ import {
   Cell,
   AreaChart,
   Area,
+  ReferenceLine,
 } from "recharts";
 import {
   provinceAccidentData,
@@ -70,6 +76,15 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 export const Route = createFileRoute("/dashboard")({
+  loader: async () => {
+    // Fetch initial dashboard data with default filters
+    const data = await fetchDashboardStats("all", "all", "all", "all", "all", "all");
+    return data;
+  },
+  // Cache configuration
+  staleTime: 30 * 60 * 1000, // 30 minutes - data is considered fresh for 30 minutes
+  gcTime: 60 * 60 * 1000, // 60 minutes - cached data is garbage collected after 60 minutes
+  pendingComponent: DashboardSkeleton,
   component: () => (
     <ProtectedRoute>
       <DashboardPage />
@@ -77,12 +92,30 @@ export const Route = createFileRoute("/dashboard")({
   ),
 });
 
+// Vehicle pie chart colors
+const VEHICLE_COLORS = [
+  "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+  "#EC4899", "#14B8A6", "#F97316", "#06B6D4", "#84CC16"
+];
+
+
+
+// Dashboard filter interface
+interface DashboardFilters {
+  vehicle: string | null;
+  weather: string | null;
+  cause: string | null;
+  severity: 'fatal' | 'serious' | 'minor' | null;
+  hour: number | null;
+  weekday: number | null; // 0 = Sunday, 6 = Saturday
+}
+
 // Date range options
 const dateRanges = [
   {
     id: "all",
-    name_en: "1 Jan 2019 - 31 Aug 2025",
-    name_th: "1 ม.ค. 2019 - 31 ส.ค. 2025",
+    name_en: "All Time (2019-2025)",
+    name_th: "ทั้งหมด (2019-2025)",
   },
   { id: "2025", name_en: "2025 (Jan-Aug)", name_th: "2568 (ม.ค.-ส.ค.)" },
   { id: "2024", name_en: "2024", name_th: "2567" },
@@ -92,6 +125,8 @@ const dateRanges = [
   { id: "2020", name_en: "2020", name_th: "2563" },
   { id: "2019", name_en: "2019", name_th: "2562" },
 ];
+
+
 
 // Province name mapping (GeoJSON English name -> Thai name for API)
 const provinceNameMapping: Record<string, string> = {
@@ -185,30 +220,82 @@ const provinceNameMapping: Record<string, string> = {
 
 function DashboardPage() {
   const { language } = useLanguage();
+  const initialData = useLoaderData({ from: "/dashboard" });
+  
+  // State
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
+    initialData
+  );
+  const [loading, setLoading] = useState(false);
+  
+  // Filters
+  const [selectedDateRange, setSelectedDateRange] = useState("all");
+  
+  const [selectedProvince, setSelectedProvince] = useState("all");
+  const [selectedCasualtyType, setSelectedCasualtyType] = useState("all");
+  const [selectedVehicle, setSelectedVehicle] = useState("all");
+  const [selectedWeather, setSelectedWeather] = useState("all");
+  const [selectedAccidentCause, setSelectedAccidentCause] = useState("all");
 
-  // Filter states
-  const [selectedDateRange, setSelectedDateRange] = useState<string>("all");
-  const [selectedProvince, setSelectedProvince] = useState<string>("all");
-  const [selectedCasualtyType, setSelectedCasualtyType] =
-    useState<string>("all");
-  const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
-  const [selectedWeather, setSelectedWeather] = useState<string>("all");
-  const [selectedAccidentCause, setSelectedAccidentCause] =
-    useState<string>("all"); // NEW!
+  // Interactive filters from charts
+  const [filters, setFilters] = useState<DashboardFilters>({
+    vehicle: null,
+    weather: null,
+    cause: null,
+    severity: null,
+    hour: null,
+    weekday: null,
+  });
+
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
 
-  // Dashboard data from API
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(
-    null,
-  );
-  const [loading, setLoading] = useState(true);
+  // Filter helper functions
+  const toggleFilter = (dimension: keyof DashboardFilters, value: any) => {
+    setFilters(prev => ({
+      ...prev,
+      [dimension]: prev[dimension] === value ? null : value
+    }));
+  };
+
+  const clearFilter = (dimension: keyof DashboardFilters) => {
+    setFilters(prev => ({ ...prev, [dimension]: null }));
+  };
+
+  const clearAllFilters = () => {
+    setFilters({
+      vehicle: null,
+      weather: null,
+      cause: null,
+      severity: null,
+      hour: null,
+      weekday: null,
+    });
+  };
+
+  const hasInteractiveFilters = Object.values(filters).some(f => f !== null);
+
+  // Debug logging
+  useEffect(() => {
+    if (dashboardStats && dashboardStats.all_events && dashboardStats.all_events.length > 0) {
+      console.log("First event sample:", (dashboardStats.all_events as any)[0]);
+    }
+  }, [dashboardStats]);
+
+  useEffect(() => {
+    console.log("Active filters:", filters);
+  }, [filters]);
 
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const provinceLayersRef = useRef<{ [key: string]: L.GeoJSON }>({});
 
-  // Fetch dashboard data from API
+  // Fetch dashboard data from API only when filters change from defaults
   useEffect(() => {
+    // Skip if using default filters (use cached loader data)
+    if (selectedDateRange === "all" && selectedProvince === "all") {
+      return;
+    }
+
     const loadDashboardData = async () => {
       try {
         setLoading(true);
@@ -353,11 +440,54 @@ function DashboardPage() {
       return true;
     });
 
+    // Apply interactive filters (cross-chart filtering)
+    const eventsForAggregation = filteredEvents.filter((event) => {
+      // Vehicle filter
+      if (filters.vehicle && event.vehicle_1 !== filters.vehicle) {
+        return false;
+      }
+
+      // Weather filter
+      if (filters.weather && event.weather_condition !== filters.weather) {
+        return false;
+      }
+
+      // Cause filter
+      if (filters.cause && event.presumed_cause !== filters.cause) {
+        return false;
+      }
+
+      // Severity filter
+      if (filters.severity) {
+        const fatal = event.casualties_fatal || 0;
+        const serious = event.casualties_serious || 0;
+        const minor = event.casualties_minor || 0;
+        
+        if (filters.severity === 'fatal' && fatal === 0) return false;
+        if (filters.severity === 'serious' && serious === 0) return false;
+        if (filters.severity === 'minor' && minor === 0) return false;
+      }
+
+      // Hour filter
+      if (filters.hour !== null && (event as any).hour != filters.hour) {
+        return false;
+      }
+
+      // Weekday filter
+      if (filters.weekday !== null && (event as any).day_of_week != filters.weekday) {
+        return false;
+      }
+
+      return true;
+    });
+
     // Re-aggregate filtered data
     const vehicleCount: Record<string, number> = {};
     const weatherCount: Record<string, number> = {};
     const causeCount: Record<string, number> = {};
     const accidentTypeCount: Record<string, number> = {};
+    const hourlyCount: Record<number, number> = {};
+    const weekdayCount: Record<number, number> = {};
     const provinceCount: Record<
       string,
       { count: number; fatal: number; serious: number; minor: number }
@@ -366,7 +496,7 @@ function DashboardPage() {
     let totalSerious = 0;
     let totalMinor = 0;
 
-    filteredEvents.forEach((event) => {
+    eventsForAggregation.forEach((event) => {
       // Count by vehicle
       const vehicle = event.vehicle_1 || "ไม่ทราบ";
       vehicleCount[vehicle] = (vehicleCount[vehicle] || 0) + 1;
@@ -399,9 +529,21 @@ function DashboardPage() {
       totalFatal += event.casualties_fatal || 0;
       totalSerious += event.casualties_serious || 0;
       totalMinor += event.casualties_minor || 0;
+
+      // Count by hour (if available)
+      const hour = (event as any).hour;
+      if (hour !== undefined && hour !== null) {
+        hourlyCount[hour] = (hourlyCount[hour] || 0) + 1;
+      }
+
+      // Count by weekday (if available)
+      const weekday = (event as any).day_of_week;
+      if (weekday !== undefined && weekday !== null) {
+        weekdayCount[weekday] = (weekdayCount[weekday] || 0) + 1;
+      }
     });
 
-    const totalAccidents = filteredEvents.length;
+    const totalAccidents = eventsForAggregation.length;
     const survivors = totalAccidents - totalFatal;
 
     // For compatibility with old dashboard components, create a structure
@@ -423,14 +565,27 @@ function DashboardPage() {
           name_th: weather,
           count: count,
         })),
-      vehicleData: Object.entries(accidentTypeCount)
+      // Accident Types (keep for potential future use)
+      accidentTypesData: Object.entries(accidentTypeCount)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 20)
+        .slice(0, 10)
         .map(([type, count]) => ({
           name_en: type,
           name_th: type,
           count: count,
         })),
+      // Vehicle Types (new pie chart data with translations)
+      vehicleTypesData: Object.entries(vehicleCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([vehicle, count]) => {
+          const vehicleMapping = vehicleTypes.find(v => v.id === vehicle);
+          return {
+            name_en: vehicleMapping?.name_en || vehicle,
+            name_th: vehicleMapping?.name_th || vehicle,
+            count: count,
+          };
+        }),
       accidentCausesData: Object.entries(causeCount)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
@@ -439,7 +594,24 @@ function DashboardPage() {
           name_th: cause,
           count: count,
         })),
-      hourlyData: dashboardStats?.hourly_pattern || [],
+      // Fix hourly data to include all 24 hours (from filtered data)
+      hourlyData: Array.from({ length: 24 }, (_, i) => ({
+        hour: i,
+        count: hourlyCount[i] || 0
+      })),
+      // Weekday data (Sun-Sat)
+      weekdayData: Array.from({ length: 7 }, (_, i) => {
+        const dayNames = {
+          en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+          th: ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์']
+        };
+        return {
+          day: i,
+          name_en: dayNames.en[i],
+          name_th: dayNames.th[i],
+          count: weekdayCount[i] || 0
+        };
+      }),
       // Default data
       monthlyData:
         dashboardStats?.monthly_trend?.length > 0
@@ -453,28 +625,28 @@ function DashboardPage() {
       severityData: [
         {
           id: "survivors",
-          name_en: "ผู้รอดชีวิต",
+          name_en: "Survivors",
           name_th: "ผู้รอดชีวิต",
           count: survivors,
           color: "#10b981",
         },
         {
           id: "minor",
-          name_en: "ผู้บาดเจ็บเล็กน้อย",
+          name_en: "Minor Injury",
           name_th: "ผู้บาดเจ็บเล็กน้อย",
           count: totalMinor,
           color: "#EAB308",
         },
         {
           id: "serious",
-          name_en: "ผู้บาดเจ็บสาหัส",
+          name_en: "Serious Injury",
           name_th: "ผู้บาดเจ็บสาหัส",
           count: totalSerious,
           color: "#f59e0b",
         },
         {
           id: "fatal",
-          name_en: "ผู้เสียชีวิต",
+          name_en: "Fatalities",
           name_th: "ผู้เสียชีวิต",
           count: totalFatal,
           color: "#ef4444",
@@ -512,6 +684,7 @@ function DashboardPage() {
     selectedVehicle,
     selectedWeather,
     selectedAccidentCause,
+    filters,
   ]);
 
   // Use filtered top provinces data instead of static data
@@ -709,10 +882,8 @@ function DashboardPage() {
     setSelectedCasualtyType("all");
     setSelectedVehicle("all");
     setSelectedWeather("all");
-    setSelectedAccidentCause("all"); // NEW!
-    if (mapRef.current) {
-      mapRef.current.setView([13.7, 100.5], 6);
-    }
+    setSelectedAccidentCause("all");
+    clearAllFilters();
   };
 
   // Check if any filter is active
@@ -722,7 +893,8 @@ function DashboardPage() {
     selectedCasualtyType !== "all" ||
     selectedVehicle !== "all" ||
     selectedWeather !== "all" ||
-    selectedAccidentCause !== "all"; // NEW!
+    selectedAccidentCause !== "all" ||
+    hasInteractiveFilters;
 
   // Show loading state
   if (loading) {
@@ -767,9 +939,10 @@ function DashboardPage() {
   const {
     province,
     weatherData = [],
-    vehicleData = [],
+    vehicleTypesData = [],
     accidentCausesData = [],
     hourlyData = [],
+    weekdayData = [],
     severityData = [],
   } = dashboardData;
 
@@ -808,17 +981,17 @@ function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-                {/* Date Range */}
+                {/* Date Range Filter */}
                 <div>
                   <label className="text-xs text-muted-foreground mb-1.5 block">
-                    {language === "en" ? "Date Range" : "ช่วงวันที่"}
+                    {language === "en" ? "Date Range" : "ช่วงเวลา"}
                   </label>
                   <Select
                     value={selectedDateRange}
                     onValueChange={setSelectedDateRange}
                   >
                     <SelectTrigger className="text-sm">
-                      <SelectValue />
+                      <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
                       {dateRanges.map((range) => (
@@ -1188,21 +1361,37 @@ function DashboardPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      if (mapRef.current) {
-                        mapRef.current.setView([13.7, 100.5], 6);
+                      if (selectedProvince === "all") {
+                        // If already "all", just reset the view (user might have zoomed/panned manually)
+                        mapRef.current?.setView([13.7, 100.5], 6);
+                        mapRef.current?.closePopup();
+                      } else {
+                        // If a province is selected, clearing it will trigger the map re-initialization
+                        setSelectedProvince("all");
                       }
                     }}
                     className="gap-1 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
                   >
-                    <Undo2 className="h-3 w-3" />
+                    {selectedProvince === "all" ? (
+                      <Undo2 className="h-3 w-3" />
+                    ) : (
+                      <ArrowLeft className="h-3 w-3" />
+                    )}
                     <span className="hidden sm:inline">
-                      {language === "en" ? "Reset View" : "รีเซ็ตมุมมอง"}
+                      {selectedProvince === "all"
+                        ? language === "en"
+                          ? "Reset Zoom"
+                          : "รีเซ็ตมุมมอง"
+                        : language === "en"
+                          ? "Back to Overview"
+                          : "กลับสู่ภาพรวม"}
                     </span>
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div
+                  key={selectedProvince} // Force remount on province change to ensure clean map initialization
                   ref={mapContainerRef}
                   className="h-[300px] md:h-[400px] rounded-lg overflow-hidden"
                 />
@@ -1319,6 +1508,78 @@ function DashboardPage() {
             </Card>
           </div>
 
+          {/* Active Filters Banner */}
+          {hasInteractiveFilters && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-wrap items-center gap-3 shadow-sm">
+              <div className="flex items-center gap-2 text-blue-700 font-medium mr-2">
+                <Filter className="h-4 w-4" />
+                {language === "en" ? "Active Filters:" : "ตัวกรองที่ใช้งานอยู่:"}
+              </div>
+              
+              {filters.vehicle && (
+                <Badge variant="secondary" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 gap-1 pl-2 pr-1 py-1">
+                  {filters.vehicle}
+                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 rounded-full hover:bg-blue-200" onClick={() => clearFilter('vehicle')}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+              
+              {filters.weather && (
+                <Badge variant="secondary" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 gap-1 pl-2 pr-1 py-1">
+                  {filters.weather}
+                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 rounded-full hover:bg-blue-200" onClick={() => clearFilter('weather')}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+
+              {filters.cause && (
+                <Badge variant="secondary" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 gap-1 pl-2 pr-1 py-1">
+                  {filters.cause}
+                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 rounded-full hover:bg-blue-200" onClick={() => clearFilter('cause')}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+
+              {filters.severity && (
+                <Badge variant="secondary" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 gap-1 pl-2 pr-1 py-1">
+                  {filters.severity === 'fatal' ? (language === 'en' ? 'Fatal' : 'เสียชีวิต') : 
+                   filters.severity === 'serious' ? (language === 'en' ? 'Serious' : 'สาหัส') : 
+                   (language === 'en' ? 'Minor' : 'บาดเจ็บเล็กน้อย')}
+                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 rounded-full hover:bg-blue-200" onClick={() => clearFilter('severity')}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+
+              {filters.hour !== null && (
+                <Badge variant="secondary" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 gap-1 pl-2 pr-1 py-1">
+                  {language === 'en' ? `Hour: ${filters.hour}:00` : `เวลา: ${filters.hour}:00`}
+                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 rounded-full hover:bg-blue-200" onClick={() => clearFilter('hour')}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+
+              {filters.weekday !== null && (
+                <Badge variant="secondary" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 gap-1 pl-2 pr-1 py-1">
+                  {language === 'en' ? 
+                    ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][filters.weekday] : 
+                    ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'][filters.weekday]}
+                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 rounded-full hover:bg-blue-200" onClick={() => clearFilter('weekday')}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+              
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-auto">
+                {language === "en" ? "Clear All" : "ล้างทั้งหมด"}
+              </Button>
+            </div>
+          )}
+
           {/* Charts Row 1: 2x2 Grid - Weather, Accident Types, Accident Causes, Severity */}
           <div className="grid gap-4 md:grid-cols-2 mb-6">
             {/* Weather Chart */}
@@ -1394,7 +1655,18 @@ function DashboardPage() {
                           dataKey="count"
                           fill="url(#weatherGradient)"
                           radius={[0, 8, 8, 0]}
-                        />
+                          onClick={(data: any) => {
+                            toggleFilter('weather', data.name_th);
+                          }}
+                          cursor="pointer"
+                        >
+                          {weatherData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              opacity={filters.weather && entry.name_th !== filters.weather ? 0.3 : 1}
+                            />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1406,63 +1678,71 @@ function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Accident Type Chart */}
+            {/* Vehicle Types Pie Chart */}
             <Card className="shadow-lg border border-gray-200">
               <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Car className="h-5 w-5 text-orange-600" />
                   <span className="text-lg font-semibold text-gray-900">
-                    {language === "en" ? "Accident Types" : "ประเภทอุบัติเหตุ"}
+                    {language === "en" ? "Vehicle Types" : "ประเภทยานพาหนะ"}
                   </span>
                 </CardTitle>
                 <CardDescription className="mt-1">
                   {language === "en"
-                    ? "Top accident categories"
-                    : "ประเภทอุบัติเหตุที่พบบ่อย"}
+                    ? "Distribution by vehicle type"
+                    : "การกระจายตามประเภทยานพาหนะ"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {vehicleData && vehicleData.length > 0 ? (
+                {vehicleTypesData && vehicleTypesData.length > 0 ? (
                   <div className="h-[200px] md:h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={vehicleData} layout="vertical">
-                        <defs>
-                          <linearGradient
-                            id="accidentGradient"
-                            x1="0"
-                            y1="0"
-                            x2="1"
-                            y2="0"
-                          >
-                            <stop
-                              offset="0%"
-                              stopColor="#FB923C"
-                              stopOpacity={0.8}
+                      <PieChart>
+                        <Pie
+                          data={vehicleTypesData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          labelLine={false}
+                          label={(entry: any) => {
+                            const name = language === "en" ? entry.name_en : entry.name_th;
+                            const percentage = ((entry.count / vehicleTypesData.reduce((sum, v) => sum + v.count, 0)) * 100).toFixed(1);
+                            return `${name.length > 15 ? name.substring(0, 12) + '...' : name}: ${percentage}%`;
+                          }}
+                          fill="#8884d8"
+                          dataKey="count"
+                          onClick={(data: any) => {
+                            toggleFilter('vehicle', data.name_th);
+                          }}
+                          cursor="pointer"
+                        >
+                          {vehicleTypesData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={VEHICLE_COLORS[index % VEHICLE_COLORS.length]}
+                              opacity={filters.vehicle && entry.name_th !== filters.vehicle ? 0.3 : 1}
                             />
-                            <stop
-                              offset="100%"
-                              stopColor="#EA580C"
-                              stopOpacity={1}
-                            />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="#E5E7EB"
-                          horizontal={false}
-                        />
-                        <XAxis
-                          type="number"
-                          className="text-xs"
-                          tick={{ fill: "#6B7280" }}
-                        />
-                        <YAxis
-                          dataKey={language === "en" ? "name_en" : "name_th"}
-                          type="category"
-                          className="text-xs"
-                          tick={{ fill: "#374151" }}
-                          width={120}
-                        />
+                          ))}
+                        </Pie>
+                        <text 
+                          x="50%" 
+                          y="48%" 
+                          textAnchor="middle" 
+                          dominantBaseline="middle"
+                          className="text-2xl font-bold fill-gray-700"
+                        >
+                          {vehicleTypesData.reduce((sum, v) => sum + v.count, 0).toLocaleString()}
+                        </text>
+                        <text 
+                          x="50%" 
+                          y="54%" 
+                          textAnchor="middle" 
+                          dominantBaseline="middle"
+                          className="text-xs fill-gray-500"
+                        >
+                          {language === "en" ? "Total" : "ทั้งหมด"}
+                        </text>
                         <Tooltip
                           contentStyle={{
                             backgroundColor: "#FFFFFF",
@@ -1470,17 +1750,12 @@ function DashboardPage() {
                             borderRadius: "8px",
                             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                           }}
-                          formatter={(value: number) => [
+                          formatter={(value: number, _name: string, props: any) => [
                             `${value.toLocaleString()} ${language === "en" ? "accidents" : "อุบัติเหตุ"}`,
-                            language === "en" ? "Total" : "ทั้งหมด",
+                            language === "en" ? props.payload.name_en : props.payload.name_th
                           ]}
                         />
-                        <Bar
-                          dataKey="count"
-                          fill="url(#accidentGradient)"
-                          radius={[0, 8, 8, 0]}
-                        />
-                      </BarChart>
+                      </PieChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
@@ -1564,7 +1839,18 @@ function DashboardPage() {
                           dataKey="count"
                           fill="url(#causeGradient)"
                           radius={[0, 8, 8, 0]}
-                        />
+                          onClick={(data: any) => {
+                            toggleFilter('cause', data.name_th);
+                          }}
+                          cursor="pointer"
+                        >
+                          {accidentCausesData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              opacity={filters.cause && entry.name_th !== filters.cause ? 0.3 : 1}
+                            />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1615,6 +1901,12 @@ function DashboardPage() {
                             outerRadius={85}
                             paddingAngle={3}
                             dataKey="count"
+                            onClick={(data: any) => {
+                              if (data.id !== 'survivors') {
+                                toggleFilter('severity', data.id);
+                              }
+                            }}
+                            cursor="pointer"
                           >
                             {severityData.map((entry, index) => (
                               <Cell
@@ -1622,6 +1914,7 @@ function DashboardPage() {
                                 fill={entry.color}
                                 stroke="#FFFFFF"
                                 strokeWidth={2}
+                                opacity={filters.severity && entry.id !== filters.severity ? 0.3 : 1}
                               />
                             ))}
                           </Pie>
@@ -1677,8 +1970,8 @@ function DashboardPage() {
             </Card>
           </div>
 
-          {/* Charts Row 2: Hourly Pattern - Full Width */}
-          <div className="grid gap-4 mb-6">
+          {/* Charts Row 2: Hourly Pattern and Weekday Pattern */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             {/* Hourly Chart */}
             <Card className="shadow-lg border border-gray-200">
               <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
@@ -1694,8 +1987,8 @@ function DashboardPage() {
                     </CardTitle>
                     <CardDescription className="mt-1">
                       {language === "en"
-                        ? "Peak hours: 6-9 AM & 4-7 PM"
-                        : "ช่วงเสี่ยง: 6-9 น. และ 16-19 น."}
+                        ? "Accidents by time of day"
+                        : "อุบัติเหตุตามช่วงเวลา"}
                     </CardDescription>
                   </div>
                   <div className="text-right">
@@ -1712,9 +2005,23 @@ function DashboardPage() {
               </CardHeader>
               <CardContent>
                 {hourlyData && hourlyData.length > 0 ? (
-                  <div className="h-[200px] md:h-[280px]">
+                  <div className="h-[200px] md:h-[280px] cursor-pointer">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={hourlyData}>
+                      <AreaChart
+                        data={hourlyData}
+                        onClick={(data: any) => {
+                          console.log("Hourly Chart Click:", data);
+                          if (data) {
+                            // Try activeLabel first (X-axis value), then activePayload
+                            const hour = data.activeLabel ?? data.activePayload?.[0]?.payload?.hour;
+                            
+                            if (hour !== undefined && hour !== null) {
+                              console.log("Toggling hour:", hour);
+                              toggleFilter('hour', hour);
+                            }
+                          }
+                        }}
+                      >
                         <defs>
                           <linearGradient
                             id="hourlyGradient"
@@ -1747,6 +2054,20 @@ function DashboardPage() {
                           tickFormatter={(hour) => `${hour}:00`}
                         />
                         <YAxis className="text-xs" tick={{ fill: "#6B7280" }} />
+                        {filters.hour !== null && (
+                          <ReferenceLine
+                            x={filters.hour}
+                            stroke="#2563EB"
+                            strokeWidth={3}
+                            label={{
+                              value: `${filters.hour}:00`,
+                              position: 'top',
+                              fill: '#2563EB',
+                              fontSize: 12,
+                              fontWeight: 'bold'
+                            }}
+                          />
+                        )}
                         <Tooltip
                           contentStyle={{
                             backgroundColor: "#FFFFFF",
@@ -1768,8 +2089,119 @@ function DashboardPage() {
                           stroke="#2563EB"
                           strokeWidth={2}
                           fill="url(#hourlyGradient)"
+                          activeDot={{ r: 6, strokeWidth: 0 }}
                         />
                       </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-[200px] md:h-[280px] flex items-center justify-center text-gray-400">
+                    {language === "en" ? "No data available" : "ไม่มีข้อมูล"}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Weekday Chart */}
+            <Card className="shadow-lg border border-gray-200">
+              <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-purple-600" />
+                      <span className="text-lg font-semibold text-gray-900">
+                        {language === "en"
+                          ? "Weekday Pattern"
+                          : "รูปแบบรายสัปดาห์"}
+                      </span>
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {language === "en"
+                        ? "Accidents by day of week"
+                        : "อุบัติเหตุตามวันในสัปดาห์"}
+                    </CardDescription>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-purple-600">
+                      {Math.max(
+                        ...weekdayData.map((d) => d.count),
+                      ).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {language === "en" ? "Peak" : "สูงสุด"}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {weekdayData && weekdayData.length > 0 ? (
+                  <div className="h-[200px] md:h-[280px] cursor-pointer">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={weekdayData}
+                      >
+                        <defs>
+                          <linearGradient
+                            id="weekdayGradient"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="#9333EA"
+                              stopOpacity={0.8}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="#7E22CE"
+                              stopOpacity={1}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#E5E7EB"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey={language === "en" ? "name_en" : "name_th"}
+                          className="text-xs"
+                          tick={{ fill: "#6B7280" }}
+                        />
+                        <YAxis className="text-xs" tick={{ fill: "#6B7280" }} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#FFFFFF",
+                            border: "1px solid #E5E7EB",
+                            borderRadius: "8px",
+                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                          }}
+                          formatter={(value: number) => [
+                            value.toLocaleString(),
+                            language === "en" ? "Accidents" : "อุบัติเหตุ",
+                          ]}
+                          cursor={{ fill: "transparent" }}
+                        />
+                        <Bar
+                          dataKey="count"
+                          radius={[4, 4, 0, 0]}
+                          onClick={(data: any) => {
+                            console.log("Weekday Chart Click:", data);
+                            toggleFilter('weekday', data.day);
+                          }}
+                          cursor="pointer"
+                        >
+                          {weekdayData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={`url(#weekdayGradient)`}
+                              opacity={filters.weekday !== null && entry.day !== filters.weekday ? 0.3 : 1}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (

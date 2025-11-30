@@ -336,7 +336,7 @@ function MapPage() {
         `;
 
         // Create Longdo Popup
-        const popup = new window.longdo.Popup(
+        const popup = new (window.longdo as any).Popup(
           { lon: event.lon, lat: event.lat },
           {
             title: "",

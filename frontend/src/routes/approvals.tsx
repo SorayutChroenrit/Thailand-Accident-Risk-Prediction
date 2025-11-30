@@ -8,9 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "~
 import { Check, X } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ProtectedRoute } from "~/components/ProtectedRoute";
 
 export const Route = createFileRoute("/approvals")({
-  component: ApprovalsPage,
+  component: () => (
+    <ProtectedRoute>
+      <ApprovalsPage />
+    </ProtectedRoute>
+  ),
 });
 
 function ApprovalsPage() {

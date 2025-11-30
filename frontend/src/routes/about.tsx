@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Header } from "~/components/layout/Header";
+import { useState, useEffect } from "react";
 import { Footer } from "~/components/layout/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -25,6 +26,22 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   const { language } = useLanguage();
+  const [trafficIndex, setTrafficIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchTrafficIndex = async () => {
+      try {
+        const response = await fetch("http://localhost:10000/traffic/index");
+        const data = await response.json();
+        if (data && data.current) {
+          setTrafficIndex(data.current);
+        }
+      } catch (error) {
+        console.error("Error fetching traffic index:", error);
+      }
+    };
+    fetchTrafficIndex();
+  }, []);
 
   const features = [
     {
@@ -46,8 +63,8 @@ function AboutPage() {
       icon: Car,
       title_en: "Traffic Analysis",
       title_th: "การวิเคราะห์จราจร",
-      desc_en: "Live traffic conditions from TomTom Traffic API",
-      desc_th: "สภาพจราจรแบบสดจาก TomTom Traffic API",
+      desc_en: `Live traffic conditions from Longdo Map API ${trafficIndex ? `(Current Index: ${trafficIndex})` : ""}`,
+      desc_th: `สภาพจราจรแบบสดจาก Longdo Map API ${trafficIndex ? `(ดัชนีปัจจุบัน: ${trafficIndex})` : ""}`,
     },
     {
       icon: Database,
@@ -60,19 +77,24 @@ function AboutPage() {
 
   const team = [
     {
-      name: "Development Team",
-      role_en: "Software Engineering",
-      role_th: "วิศวกรรมซอฟต์แวร์",
+      name: "Sorayut Chroenrit",
+      role_en: "CSI Computer",
+      role_th: "CSI Computer",
     },
     {
-      name: "Data Science Team",
-      role_en: "ML & Analytics",
-      role_th: "ML และการวิเคราะห์",
+      name: "Surawut Thangjun",
+      role_en: "CSI Computer",
+      role_th: "CSI Computer",
     },
     {
-      name: "UX/UI Team",
-      role_en: "Design & Experience",
-      role_th: "ออกแบบและประสบการณ์",
+      name: "Naphat Jaitangman",
+      role_en: "CSI Computer",
+      role_th: "CSI Computer",
+    },
+    {
+      name: "Akkaranat Tulatarn",
+      role_en: "CSI Computer",
+      role_th: "CSI Computer",
     },
   ];
 
@@ -84,8 +106,8 @@ function AboutPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">
             {language === "en"
-              ? "About SafeRoute Thailand"
-              : "เกี่ยวกับ SafeRoute Thailand"}
+              ? "About SafeRoute"
+              : "เกี่ยวกับ SafeRoute"}
           </h1>
           <p className="text-muted-foreground mt-1">
             {language === "en"
@@ -134,8 +156,8 @@ function AboutPage() {
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {language === "en"
-                        ? "We collect real-time weather, traffic, and historical accident data from multiple sources."
-                        : "เรารวบรวมข้อมูลสภาพอากาศ การจราจร และประวัติอุบัติเหตุแบบเรียลไทม์จากหลายแหล่ง"}
+                        ? "We collect real-time weather, traffic, and historical accident data from Longdo Map and OpenWeatherMap."
+                        : "เรารวบรวมข้อมูลสภาพอากาศ การจราจร และประวัติอุบัติเหตุแบบเรียลไทม์จาก Longdo Map และ OpenWeatherMap"}
                     </p>
                   </div>
                 </div>
@@ -280,7 +302,7 @@ function AboutPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {team.map((member) => (
                   <div
                     key={member.name}
@@ -354,11 +376,11 @@ function AboutPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  TomTom Traffic API - Traffic conditions
+                  Longdo Map API - Traffic conditions & Incidents
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  Thailand Road Safety Data - Historical accidents
+                  Supabase - Accident Database Storage
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
